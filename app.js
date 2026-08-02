@@ -328,10 +328,10 @@ function computeScore(taskArr) {
 
 function scoreMessage(percent, hasTasks) {
   if (!hasTasks) return "Aucune tâche pour l'instant";
-  if (percent >= 80) return 'Journée Pareto : tu as attaqué l\'essentiel';
-  if (percent >= 50) return 'Bonne progression sur ce qui compte';
-  if (percent >= 20) return 'Encore du poids important à faire tomber';
-  return "L'essentiel n'est pas encore fait";
+  if (percent >= 80) return "L'essentiel est fait";
+  if (percent >= 50) return 'Bonne progression';
+  if (percent >= 20) return 'Il reste des tâches importantes';
+  return "L'essentiel reste à faire";
 }
 
 function longLabel(key) {
@@ -628,9 +628,9 @@ function renderNavChips() {
 
 function renderDayChips() {
   dayChipsEl.innerHTML = '';
-  const start = todayKey();
-  const keys = [];
-  for (let i = 0; i < 6; i++) keys.push(addDaysToKey(start, i));
+  const today = todayKey();
+  const keys = [today, addDaysToKey(today, 1)];
+  // keep the currently targeted day visible even if it's further away
   if (!keys.includes(selectedTaskDate)) keys.push(selectedTaskDate);
 
   keys.forEach(key => {
@@ -1429,6 +1429,81 @@ function getCompletionRate(habit, days) {
   return total === 0 ? null : Math.round((good / total) * 100);
 }
 
+// Completion rate for the 7 days starting at weekStartDate (future days,
+// relative to today, are skipped rather than counted as misses).
+function getWeeklyRate(habit, weekStartDate) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let good = 0;
+  let total = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStartDate);
+    d.setDate(d.getDate() + i);
+    if (d > today) continue;
+    const outcome = getOutcome(habit, habitData.entries[habit.id]?.[formatKey(d)]);
+    if (outcome === 'good' || outcome === 'bad') {
+      total++;
+      if (outcome === 'good') good++;
+    }
+  }
+  return total === 0 ? null : Math.round((good / total) * 100);
+}
+
+function colorForPct(pct) {
+  if (pct <= 20) return 'var(--recap-red-vivid)';
+  if (pct < 40) return 'var(--recap-red-soft)';
+  if (pct < 70) return 'var(--recap-orange)';
+  if (pct < 80) return 'var(--recap-green-soft)';
+  return 'var(--recap-green-vivid)';
+}
+
+// Small inline SVG bar chart of the last WEEKS_SHOWN weeks' completion rate,
+// giving an at-a-glance trend instead of scanning individual day squares.
+function buildTrendChart(habit) {
+  const WEEKS_SHOWN = 8;
+  const thisMonday = getMonday(new Date());
+  const weeks = [];
+  for (let i = WEEKS_SHOWN - 1; i >= 0; i--) {
+    const ws = new Date(thisMonday);
+    ws.setDate(ws.getDate() - i * 7);
+    weeks.push(getWeeklyRate(habit, ws));
+  }
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const width = 280;
+  const height = 70;
+  const baseline = height - 4;
+  const gap = 6;
+  const barWidth = (width - gap * (WEEKS_SHOWN - 1)) / WEEKS_SHOWN;
+
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('class', 'trend-chart');
+
+  weeks.forEach((pct, i) => {
+    const x = i * (barWidth + gap);
+    const barHeight = pct === null ? 2 : Math.max(4, (pct / 100) * (baseline - 6));
+    const y = baseline - barHeight;
+
+    const rect = document.createElementNS(svgNS, 'rect');
+    rect.setAttribute('x', x);
+    rect.setAttribute('y', y);
+    rect.setAttribute('width', barWidth);
+    rect.setAttribute('height', barHeight);
+    rect.setAttribute('rx', 3);
+    rect.setAttribute('fill', pct === null ? 'var(--empty-cell)' : colorForPct(pct));
+    if (pct !== null) {
+      const title = document.createElementNS(svgNS, 'title');
+      title.textContent = `${pct}%`;
+      rect.appendChild(title);
+    }
+    svg.appendChild(rect);
+  });
+
+  return svg;
+}
+
 function renderTrendsView() {
   trendsViewEl.innerHTML = '';
   if (habitData.habits.length === 0) return;
@@ -1448,6 +1523,12 @@ function renderTrendsView() {
       <span class="habit-category">${escapeHtml(habit.category)}</span>
     `;
     card.appendChild(header);
+
+    const chartLabel = document.createElement('div');
+    chartLabel.className = 'trend-chart-label';
+    chartLabel.textContent = 'Tendance hebdomadaire (8 dernières semaines)';
+    card.appendChild(chartLabel);
+    card.appendChild(buildTrendChart(habit));
 
     const heatmap = document.createElement('div');
     heatmap.className = 'trend-heatmap';
@@ -1640,8 +1721,86 @@ document.getElementById('nextWeek').addEventListener('click', () => {
   renderHabits();
 });
 weekLabelEl.addEventListener('click', () => {
+  openWeekPicker();
+});
+
+// ---- Week picker (calendar to jump to any past/future week) --------
+
+const weekPickerOverlayEl = document.getElementById('weekPickerOverlay');
+const weekPickerMonthLabelEl = document.getElementById('weekPickerMonthLabel');
+const weekPickerGridEl = document.getElementById('weekPickerGrid');
+const weekPickerPrevMonthBtn = document.getElementById('weekPickerPrevMonth');
+const weekPickerNextMonthBtn = document.getElementById('weekPickerNextMonth');
+const weekPickerTodayBtn = document.getElementById('weekPickerTodayBtn');
+const weekPickerCloseBtn = document.getElementById('weekPickerCloseBtn');
+const WEEK_PICKER_DOW = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+let weekPickerMonthCursor = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
+
+function openWeekPicker() {
+  weekPickerMonthCursor = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
+  renderWeekPicker();
+  weekPickerOverlayEl.hidden = false;
+}
+
+function closeWeekPicker() {
+  weekPickerOverlayEl.hidden = true;
+}
+
+function renderWeekPicker() {
+  const monthLabel = weekPickerMonthCursor.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  weekPickerMonthLabelEl.textContent = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+
+  weekPickerGridEl.innerHTML = '';
+  WEEK_PICKER_DOW.forEach(label => {
+    const el = document.createElement('div');
+    el.className = 'week-picker-dow';
+    el.textContent = label;
+    weekPickerGridEl.appendChild(el);
+  });
+
+  const firstOfMonth = new Date(weekPickerMonthCursor.getFullYear(), weekPickerMonthCursor.getMonth(), 1);
+  const gridStart = getMonday(firstOfMonth);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart);
+    d.setDate(d.getDate() + i);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'week-picker-day';
+    if (d.getMonth() !== weekPickerMonthCursor.getMonth()) btn.classList.add('muted');
+    if (isSameDay(d, today)) btn.classList.add('today');
+    if (d >= weekStart && d <= weekEnd) btn.classList.add('in-selected-week');
+    btn.textContent = d.getDate();
+    btn.addEventListener('click', () => {
+      weekStart = getMonday(d);
+      closeWeekPicker();
+      renderHabits();
+    });
+    weekPickerGridEl.appendChild(btn);
+  }
+}
+
+weekPickerPrevMonthBtn.addEventListener('click', () => {
+  weekPickerMonthCursor.setMonth(weekPickerMonthCursor.getMonth() - 1);
+  renderWeekPicker();
+});
+weekPickerNextMonthBtn.addEventListener('click', () => {
+  weekPickerMonthCursor.setMonth(weekPickerMonthCursor.getMonth() + 1);
+  renderWeekPicker();
+});
+weekPickerTodayBtn.addEventListener('click', () => {
   weekStart = getMonday(new Date());
+  closeWeekPicker();
   renderHabits();
+});
+weekPickerCloseBtn.addEventListener('click', closeWeekPicker);
+weekPickerOverlayEl.addEventListener('click', (e) => {
+  if (e.target === weekPickerOverlayEl) closeWeekPicker();
 });
 
 renderHabits();

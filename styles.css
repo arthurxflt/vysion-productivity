@@ -60,24 +60,14 @@ body {
 
 .header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.header h1 {
-  margin: 0 0 20px;
-  font-size: 1.6rem;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  margin-bottom: 20px;
 }
 
 .header-logo {
-  height: 36px;
+  height: 34px;
   width: auto;
   flex-shrink: 0;
 }
@@ -1324,3 +1314,74 @@ body {
 .btn-ghost { background: transparent; color: var(--text-muted); }
 .btn-danger { background: transparent; color: var(--missed); }
 .btn-danger.confirming { background: var(--missed); color: #fff; }
+
+/* Week picker */
+.week-picker-modal {
+  max-width: 340px;
+}
+
+.week-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.week-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.week-picker-dow {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-bottom: 4px;
+}
+
+.week-picker-day {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.week-picker-day:hover {
+  background: var(--border);
+}
+
+.week-picker-day.muted {
+  color: var(--text-muted);
+  opacity: 0.45;
+}
+
+.week-picker-day.today {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.week-picker-day.in-selected-week {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Trend chart */
+.trend-chart-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.trend-chart {
+  width: 100%;
+  height: 70px;
+  display: block;
+  margin-bottom: 14px;
+}

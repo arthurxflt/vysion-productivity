@@ -16,11 +16,8 @@
 <div class="app">
 
   <header class="header">
-    <h1>Vysion Productivity</h1>
-    <div class="header-right">
-      <img src="logo-header.png" alt="Vysion Productivity" class="header-logo">
-      <button type="button" class="header-logout-btn" id="headerLogoutBtn" hidden title="Se déconnecter" aria-label="Se déconnecter">⏻</button>
-    </div>
+    <img src="logo-header.png" alt="Vysion Productivity" class="header-logo">
+    <button type="button" class="header-logout-btn" id="headerLogoutBtn" hidden title="Se déconnecter" aria-label="Se déconnecter">⏻</button>
   </header>
 
   <section class="auth-gate" id="authGate">
@@ -91,11 +88,11 @@
 
         <div class="date-picker-row" id="datePickerRow">
           <label>Pour le</label>
-          <div class="day-chips" id="dayChips"></div>
-          <div class="other-date-row">
-            <button type="button" class="ghost-btn" id="otherDateToggle">Autre date…</button>
-            <input type="date" id="taskDate" class="date-fallback-input" hidden>
+          <div class="nav-day-row">
+            <div class="day-chips" id="dayChips"></div>
+            <button type="button" class="nav-date-icon-btn" id="otherDateToggle" aria-label="Autre date" title="Autre date">📅</button>
           </div>
+          <input type="date" id="taskDate" class="date-fallback-input" hidden>
         </div>
 
         <div class="weight-row">
@@ -235,6 +232,24 @@
         <div class="modal-actions-right">
           <button id="habitCancelBtn" class="btn btn-ghost">Annuler</button>
           <button id="habitSaveBtn" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Week picker -->
+  <div id="weekPickerOverlay" class="modal-overlay" hidden>
+    <div class="modal week-picker-modal">
+      <div class="week-picker-header">
+        <button type="button" id="weekPickerPrevMonth" class="nav-arrow" aria-label="Mois précédent">‹</button>
+        <span id="weekPickerMonthLabel">Août 2026</span>
+        <button type="button" id="weekPickerNextMonth" class="nav-arrow" aria-label="Mois suivant">›</button>
+      </div>
+      <div class="week-picker-grid" id="weekPickerGrid"></div>
+      <div class="modal-actions">
+        <button type="button" id="weekPickerTodayBtn" class="btn btn-ghost">Aujourd'hui</button>
+        <div class="modal-actions-right">
+          <button type="button" id="weekPickerCloseBtn" class="btn btn-ghost">Fermer</button>
         </div>
       </div>
     </div>
