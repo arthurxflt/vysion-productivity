@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vysion-productivity-v1';
+const CACHE_NAME = 'vysion-productivity-v2';
 const ASSETS = [
   './',
   './index.html',

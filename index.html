@@ -60,11 +60,11 @@
 
       <section class="nav-wrap">
         <label class="nav-label">Jour affiché</label>
-        <div class="day-chips nav-day-chips" id="navDayChips"></div>
-        <div class="other-date-row">
-          <button type="button" class="ghost-btn" id="navOtherDateToggle">📅 Autre date…</button>
-          <input type="date" id="navDateJump" class="date-fallback-input" hidden>
+        <div class="nav-day-row">
+          <div class="day-chips nav-day-chips" id="navDayChips"></div>
+          <button type="button" class="nav-date-icon-btn" id="navOtherDateToggle" aria-label="Autre date" title="Autre date">📅</button>
         </div>
+        <input type="date" id="navDateJump" class="date-fallback-input" hidden>
       </section>
 
       <form class="add-form" id="addForm">

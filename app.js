@@ -611,9 +611,9 @@ function renderTasks() {
 
 function renderNavChips() {
   navDayChipsEl.innerHTML = '';
-  const start = addDaysToKey(todayKey(), -1);
-  const keys = [];
-  for (let i = 0; i < 6; i++) keys.push(addDaysToKey(start, i));
+  const today = todayKey();
+  const keys = [addDaysToKey(today, -1), today, addDaysToKey(today, 1)];
+  // keep the currently viewed day visible even if it's further away
   if (!keys.includes(selectedDate)) keys.push(selectedDate);
 
   keys.forEach(key => {
