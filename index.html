@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vysion Productivity</title>
+<meta name="theme-color" content="#6c5ce7">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Vysion">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <h1>Vysion Productivity</h1>
+    <div class="header-right">
+      <img src="logo-header.png" alt="Vysion Productivity" class="header-logo">
+      <button type="button" class="header-logout-btn" id="headerLogoutBtn" hidden title="Se déconnecter" aria-label="Se déconnecter">⏻</button>
+    </div>
+  </header>
+
+  <section class="auth-gate" id="authGate">
+    <div class="auth-gate-card">
+      <p class="sync-hint">Connecte-toi pour accéder à ton espace.</p>
+      <input type="email" id="authEmail" class="auth-input" placeholder="Email" autocomplete="email">
+      <input type="password" id="authPassword" class="auth-input" placeholder="Mot de passe" autocomplete="current-password">
+      <div class="auth-btn-row">
+        <button type="button" class="sync-btn" id="authSignInBtn">Se connecter</button>
+        <button type="button" class="ghost-btn" id="authSignUpBtn">Créer un compte</button>
+      </div>
+      <p class="sync-status" id="authStatus"></p>
+    </div>
+  </section>
+
+  <div id="appContent" hidden>
+
+    <div class="module-tabs">
+      <button type="button" class="module-tab active" id="tabTasksBtn" data-module="tasks">Tâches</button>
+      <button type="button" class="module-tab" id="tabHabitsBtn" data-module="habits">Habitudes</button>
+    </div>
+
+    <!-- ============== TASKS MODULE ============== -->
+    <div id="tasksModule" class="module-panel">
+
+      <section class="score-card">
+        <div class="score-top">
+          <span class="score-value" id="scoreValue">0%</span>
+          <span class="score-label" id="scoreLabel">Aucune tâche pour l'instant</span>
+        </div>
+        <div class="score-bar">
+          <div class="score-bar-fill" id="scoreBarFill"></div>
+        </div>
+        <div class="score-sub" id="scoreSub"></div>
+        <div class="priority-warning" id="priorityWarning" hidden>⚠️ Pas de tâche prioritaire ce jour-là — pense à l'essentiel avant les détails.</div>
+      </section>
+
+      <section class="nav-wrap">
+        <label class="nav-label">Jour affiché</label>
+        <div class="day-chips nav-day-chips" id="navDayChips"></div>
+        <div class="other-date-row">
+          <button type="button" class="ghost-btn" id="navOtherDateToggle">📅 Autre date…</button>
+          <input type="date" id="navDateJump" class="date-fallback-input" hidden>
+        </div>
+      </section>
+
+      <form class="add-form" id="addForm">
+        <input type="text" id="taskTitle" placeholder="Nouvelle tâche…" autocomplete="off" required maxlength="200">
+
+        <div class="repeat-row">
+          <label for="repeatMode">Répétition</label>
+          <select id="repeatMode">
+            <option value="once">Une seule fois</option>
+            <option value="daily">Tous les jours</option>
+            <option value="custom">Certains jours</option>
+          </select>
+        </div>
+
+        <div class="weekday-picker" id="weekdayPicker" hidden>
+          <button type="button" class="weekday-chip" data-day="1">Lun</button>
+          <button type="button" class="weekday-chip" data-day="2">Mar</button>
+          <button type="button" class="weekday-chip" data-day="3">Mer</button>
+          <button type="button" class="weekday-chip" data-day="4">Jeu</button>
+          <button type="button" class="weekday-chip" data-day="5">Ven</button>
+          <button type="button" class="weekday-chip" data-day="6">Sam</button>
+          <button type="button" class="weekday-chip" data-day="0">Dim</button>
+        </div>
+
+        <div class="date-picker-row" id="datePickerRow">
+          <label>Pour le</label>
+          <div class="day-chips" id="dayChips"></div>
+          <div class="other-date-row">
+            <button type="button" class="ghost-btn" id="otherDateToggle">Autre date…</button>
+            <input type="date" id="taskDate" class="date-fallback-input" hidden>
+          </div>
+        </div>
+
+        <div class="weight-row">
+          <label for="taskWeight">Importance</label>
+          <input type="range" id="taskWeight" min="1" max="10" value="5" step="1">
+          <span class="weight-value" id="weightValue">5</span>
+        </div>
+        <button type="submit">Ajouter</button>
+      </form>
+
+      <section class="task-list-wrap">
+        <div class="list-header">
+          <h2 id="listTitle">Tâches du jour</h2>
+        </div>
+        <ul class="task-list" id="taskList"></ul>
+        <p class="empty-state" id="emptyState">Aucune tâche prévue pour ce jour.</p>
+
+        <div class="day-note-wrap">
+          <label class="day-note-label" for="dayNoteInput">Note du jour</label>
+          <textarea id="dayNoteInput" class="day-note-input" placeholder="Écris une note libre pour cette journée…" rows="2"></textarea>
+        </div>
+
+        <div class="completed-wrap" id="completedWrap" hidden>
+          <button type="button" class="completed-toggle" id="completedToggle">
+            <span id="completedToggleLabel">Tâches effectuées</span>
+            <span class="completed-chevron" id="completedChevron">▾</span>
+          </button>
+          <ul class="task-list" id="completedList" hidden></ul>
+        </div>
+
+        <div class="completed-wrap" id="abandonedWrap" hidden>
+          <button type="button" class="completed-toggle" id="abandonedToggle">
+            <span id="abandonedToggleLabel">Tâches abandonnées</span>
+            <span class="completed-chevron" id="abandonedChevron">▾</span>
+          </button>
+          <ul class="task-list" id="abandonedList" hidden></ul>
+        </div>
+      </section>
+
+      <section class="recurring-wrap" id="recurringWrap" hidden>
+        <h2>Tâches récurrentes</h2>
+        <ul class="recurring-list" id="recurringList"></ul>
+      </section>
+
+      <section class="upcoming-wrap" id="upcomingWrap" hidden>
+        <h2>À venir</h2>
+        <div class="upcoming-days" id="upcomingList"></div>
+      </section>
+
+      <section class="history-wrap" id="historyWrap" hidden>
+        <h2>Historique</h2>
+        <ul class="history-list" id="historyList"></ul>
+      </section>
+
+    </div>
+
+    <!-- ============== HABITS MODULE ============== -->
+    <div id="habitsModule" class="module-panel" hidden>
+
+      <header class="topbar">
+        <button id="weekLabel" class="week-label">Cette semaine ▾</button>
+        <button id="addHabitBtn" class="icon-btn add-btn" title="Ajouter une habitude" aria-label="Ajouter une habitude">+</button>
+      </header>
+
+      <div class="view-toggle">
+        <button class="view-tab active" data-view="week">Semaine</button>
+        <button class="view-tab" data-view="trends">Tendances</button>
+      </div>
+
+      <nav id="weekNav" class="week-nav">
+        <button id="prevWeek" class="nav-arrow" aria-label="Semaine précédente">‹</button>
+        <div id="daysRow" class="days-row"></div>
+        <button id="nextWeek" class="nav-arrow" aria-label="Semaine suivante">›</button>
+      </nav>
+
+      <main id="habitList" class="habit-list"></main>
+
+      <div id="dayRecapRow" class="day-recap-row" hidden></div>
+
+      <div id="weekRecap" class="daily-recap" hidden>
+        <span class="recap-label">Récap de la semaine</span>
+        <span id="weekRecapValue" class="recap-value">—</span>
+      </div>
+
+      <div id="trendsView" class="trends-view" hidden></div>
+
+      <p id="habitEmptyState" class="empty-state" hidden>
+        Aucune habitude pour l'instant.<br>Appuie sur <strong>+</strong> pour en créer une.
+      </p>
+
+    </div>
+
+  </div>
+
+  <!-- Habit add/edit modal -->
+  <div id="habitModalOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2 id="habitModalTitle">Nouvelle habitude</h2>
+
+      <label class="field">
+        <span>Nom</span>
+        <input type="text" id="habitName" placeholder="Ex. Faire du sport" maxlength="60">
+      </label>
+
+      <fieldset class="field radio-field">
+        <legend>Cette habitude est-elle bonne pour moi ?</legend>
+        <label class="radio-option">
+          <input type="radio" name="isGood" value="good" checked>
+          <span>Oui, je veux la renforcer</span>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="isGood" value="bad">
+          <span>Non, je veux la réduire / arrêter</span>
+        </label>
+      </fieldset>
+
+      <label class="field">
+        <span>Catégorie</span>
+        <select id="habitCategory">
+          <option value="Productivité">Productivité</option>
+          <option value="Santé">Santé</option>
+          <option value="Famille">Famille</option>
+          <option value="Personnel">Personnel</option>
+          <option value="Travail">Travail</option>
+          <option value="Loisirs">Loisirs</option>
+          <option value="Autre">Autre</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Description <small>(optionnel)</small></span>
+        <textarea id="habitDescription" rows="3" placeholder="Pourquoi cette habitude compte pour toi..." maxlength="280"></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button id="habitDeleteBtn" class="btn btn-danger" hidden>Supprimer</button>
+        <div class="modal-actions-right">
+          <button id="habitCancelBtn" class="btn btn-ghost">Annuler</button>
+          <button id="habitSaveBtn" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Habit day-cell popup -->
+  <div id="cellPopup" class="cell-popup" hidden>
+    <div class="popup-arrow"></div>
+    <div class="popup-actions">
+      <button class="popup-action" data-action="erase">
+        <span class="popup-icon">⌫</span><span class="popup-label">Erase</span>
+      </button>
+      <button class="popup-action popup-yes" data-action="done">
+        <span class="popup-icon">✓</span><span class="popup-label">Yes</span>
+      </button>
+      <button class="popup-action popup-no" data-action="missed">
+        <span class="popup-icon">✕</span><span class="popup-label">No</span>
+      </button>
+      <button class="popup-action" data-action="skipped">
+        <span class="popup-icon">⏭</span><span class="popup-label">Skip</span>
+      </button>
+    </div>
+  </div>
+
+</div>
+<script src="app.js" type="module"></script>
+</body>
+</html>
