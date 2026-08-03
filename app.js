@@ -988,14 +988,34 @@ const weekRecapValueEl = document.getElementById('weekRecapValue');
 const habitModalOverlayEl = document.getElementById('habitModalOverlay');
 const habitModalTitleEl = document.getElementById('habitModalTitle');
 const habitNameInput = document.getElementById('habitName');
+const habitWeightInput = document.getElementById('habitWeight');
+const habitWeightValueEl = document.getElementById('habitWeightValue');
 const habitCategorySelect = document.getElementById('habitCategory');
 const habitDescriptionInput = document.getElementById('habitDescription');
 const habitDeleteBtnEl = document.getElementById('habitDeleteBtn');
 
+function migrateHabitData(data) {
+  const result = data && typeof data === 'object' ? data : { habits: [], entries: {} };
+  if (!Array.isArray(result.habits)) result.habits = [];
+  if (!result.entries) result.entries = {};
+  let changed = false;
+  result.habits.forEach((h) => {
+    if (typeof h.weight !== 'number') {
+      h.weight = 5;
+      changed = true;
+    }
+  });
+  return { data: result, changed };
+}
+
 function loadHabitData() {
   try {
     const raw = localStorage.getItem(HABIT_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const { data, changed } = migrateHabitData(JSON.parse(raw));
+      if (changed) localStorage.setItem(HABIT_STORAGE_KEY, JSON.stringify(data));
+      return data;
+    }
   } catch { /* ignore */ }
   return { habits: [], entries: {} };
 }
@@ -1027,9 +1047,11 @@ async function pushHabitsToCloud() {
 
 function applyRemoteHabitRow(row) {
   lastHabitsPushedAt = row.updated_at;
-  habitData = row.data || { habits: [], entries: {} };
+  const { data, changed } = migrateHabitData(row.data);
+  habitData = data;
   localStorage.setItem(HABIT_STORAGE_KEY, JSON.stringify(habitData));
   renderHabits();
+  if (changed) pushHabitsToCloud();
 }
 
 async function startHabitSyncForUser(user) {
@@ -1128,16 +1150,16 @@ function getRecapColorClass(pct) {
 }
 
 function getDayCompletion(dateKey) {
-  let good = 0;
-  let total = 0;
+  let doneWeight = 0;
+  let totalWeight = 0;
   habitData.habits.forEach((habit) => {
     const outcome = getOutcome(habit, habitData.entries[habit.id]?.[dateKey]);
     if (outcome === 'good' || outcome === 'bad') {
-      total++;
-      if (outcome === 'good') good++;
+      totalWeight += habit.weight;
+      if (outcome === 'good') doneWeight += habit.weight;
     }
   });
-  return total === 0 ? null : Math.round((good / total) * 100);
+  return totalWeight === 0 ? null : Math.round((doneWeight / totalWeight) * 100);
 }
 
 function renderRecap() {
@@ -1238,6 +1260,7 @@ function renderHabitRows() {
     headerLeft.innerHTML = `
       <span class="habit-name">${escapeHtml(habit.name)}</span>
       <span class="habit-category">${escapeHtml(habit.category)}</span>
+      <span class="task-weight-badge" style="background:${weightColor(habit.weight)}">${habit.weight}</span>
     `;
     headerLeft.addEventListener('click', () => openEditHabitModal(habit.id));
     header.appendChild(headerLeft);
@@ -1457,8 +1480,11 @@ function colorForPct(pct) {
   return 'var(--recap-green-vivid)';
 }
 
-// Small inline SVG bar chart of the last WEEKS_SHOWN weeks' completion rate,
+// Small inline SVG line chart of the last WEEKS_SHOWN weeks' completion rate,
 // giving an at-a-glance trend instead of scanning individual day squares.
+// Weeks with no tracked data are simply skipped (no point, no false "0%"),
+// and the line only connects consecutive weeks that do have data - so a
+// single tracked week reads as one clear dot rather than a solid block.
 function buildTrendChart(habit) {
   const WEEKS_SHOWN = 8;
   const thisMonday = getMonday(new Date());
@@ -1472,33 +1498,74 @@ function buildTrendChart(habit) {
   const svgNS = 'http://www.w3.org/2000/svg';
   const width = 280;
   const height = 70;
-  const baseline = height - 4;
-  const gap = 6;
-  const barWidth = (width - gap * (WEEKS_SHOWN - 1)) / WEEKS_SHOWN;
+  const padX = 6;
+  const padTop = 10;
+  const padBottom = 10;
+  const usableHeight = height - padTop - padBottom;
+  const stepX = (width - padX * 2) / (WEEKS_SHOWN - 1);
 
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.setAttribute('class', 'trend-chart');
 
-  weeks.forEach((pct, i) => {
-    const x = i * (barWidth + gap);
-    const barHeight = pct === null ? 2 : Math.max(4, (pct / 100) * (baseline - 6));
-    const y = baseline - barHeight;
+  const points = weeks.map((pct, i) => {
+    if (pct === null) return null;
+    return { x: padX + i * stepX, y: padTop + usableHeight - (pct / 100) * usableHeight, pct };
+  });
 
-    const rect = document.createElementNS(svgNS, 'rect');
-    rect.setAttribute('x', x);
-    rect.setAttribute('y', y);
-    rect.setAttribute('width', barWidth);
-    rect.setAttribute('height', barHeight);
-    rect.setAttribute('rx', 3);
-    rect.setAttribute('fill', pct === null ? 'var(--empty-cell)' : colorForPct(pct));
-    if (pct !== null) {
-      const title = document.createElementNS(svgNS, 'title');
-      title.textContent = `${pct}%`;
-      rect.appendChild(title);
+  if (!points.some(Boolean)) {
+    const text = document.createElementNS(svgNS, 'text');
+    text.setAttribute('x', width / 2);
+    text.setAttribute('y', height / 2 + 4);
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', 'var(--text-muted)');
+    text.setAttribute('font-size', '12');
+    text.textContent = 'Pas encore assez de données';
+    svg.appendChild(text);
+    return svg;
+  }
+
+  const midline = document.createElementNS(svgNS, 'line');
+  midline.setAttribute('x1', 0);
+  midline.setAttribute('x2', width);
+  midline.setAttribute('y1', padTop + usableHeight / 2);
+  midline.setAttribute('y2', padTop + usableHeight / 2);
+  midline.setAttribute('stroke', 'var(--border)');
+  midline.setAttribute('stroke-width', 1);
+  svg.appendChild(midline);
+
+  let segment = [];
+  const flushSegment = () => {
+    if (segment.length >= 2) {
+      const poly = document.createElementNS(svgNS, 'polyline');
+      poly.setAttribute('points', segment.map((p) => `${p.x},${p.y}`).join(' '));
+      poly.setAttribute('fill', 'none');
+      poly.setAttribute('stroke', 'var(--accent)');
+      poly.setAttribute('stroke-width', 2);
+      poly.setAttribute('stroke-linecap', 'round');
+      poly.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(poly);
     }
-    svg.appendChild(rect);
+    segment = [];
+  };
+  points.forEach((p) => {
+    if (p) segment.push(p);
+    else flushSegment();
+  });
+  flushSegment();
+
+  points.forEach((p) => {
+    if (!p) return;
+    const dot = document.createElementNS(svgNS, 'circle');
+    dot.setAttribute('cx', p.x);
+    dot.setAttribute('cy', p.y);
+    dot.setAttribute('r', 4);
+    dot.setAttribute('fill', colorForPct(p.pct));
+    const title = document.createElementNS(svgNS, 'title');
+    title.textContent = `${p.pct}%`;
+    dot.appendChild(title);
+    svg.appendChild(dot);
   });
 
   return svg;
@@ -1521,6 +1588,7 @@ function renderTrendsView() {
     header.innerHTML = `
       <span class="habit-name">${escapeHtml(habit.name)}</span>
       <span class="habit-category">${escapeHtml(habit.category)}</span>
+      <span class="task-weight-badge" style="background:${weightColor(habit.weight)}">${habit.weight}</span>
     `;
     card.appendChild(header);
 
@@ -1628,6 +1696,8 @@ function openAddHabitModal() {
   habitNameInput.value = '';
   habitCategorySelect.value = 'Productivité';
   habitDescriptionInput.value = '';
+  habitWeightInput.value = '5';
+  habitWeightValueEl.textContent = '5';
   document.querySelector('input[name="isGood"][value="good"]').checked = true;
   habitDeleteBtnEl.hidden = true;
   resetHabitDeleteConfirm();
@@ -1643,6 +1713,8 @@ function openEditHabitModal(habitId) {
   habitNameInput.value = habit.name;
   habitCategorySelect.value = habit.category;
   habitDescriptionInput.value = habit.description || '';
+  habitWeightInput.value = String(habit.weight);
+  habitWeightValueEl.textContent = String(habit.weight);
   document.querySelector(
     `input[name="isGood"][value="${habit.isGood ? 'good' : 'bad'}"]`
   ).checked = true;
@@ -1651,6 +1723,10 @@ function openEditHabitModal(habitId) {
   habitModalOverlayEl.hidden = false;
   habitNameInput.focus();
 }
+
+habitWeightInput.addEventListener('input', () => {
+  habitWeightValueEl.textContent = habitWeightInput.value;
+});
 
 function closeHabitModal() {
   habitModalOverlayEl.hidden = true;
@@ -1666,10 +1742,11 @@ function saveHabit() {
   const isGood = document.querySelector('input[name="isGood"]:checked').value === 'good';
   const category = habitCategorySelect.value;
   const description = habitDescriptionInput.value.trim();
+  const weight = Number(habitWeightInput.value);
 
   if (editingHabitId) {
     const habit = habitData.habits.find((h) => h.id === editingHabitId);
-    Object.assign(habit, { name, isGood, category, description });
+    Object.assign(habit, { name, isGood, category, description, weight });
   } else {
     habitData.habits.push({
       id: crypto.randomUUID(),
@@ -1677,6 +1754,7 @@ function saveHabit() {
       isGood,
       category,
       description,
+      weight,
     });
   }
 
