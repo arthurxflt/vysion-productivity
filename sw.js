@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vysion-productivity-v4';
+const CACHE_NAME = 'vysion-productivity-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -26,10 +26,19 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Network-first for our own files: a new deploy is picked up as soon as the
+// device is online, instead of being masked by a stale cache indefinitely.
+// The cache is only used as an offline fallback.
 self.addEventListener('fetch', (event) => {
   if (new URL(event.request.url).origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
