@@ -18,13 +18,11 @@ const authPasswordInput = document.getElementById('authPassword');
 const authSignInBtn = document.getElementById('authSignInBtn');
 const authSignUpBtn = document.getElementById('authSignUpBtn');
 const authStatusEl = document.getElementById('authStatus');
-const headerLogoutBtn = document.getElementById('headerLogoutBtn');
 
 function updateAuthUI() {
   const loggedIn = !!currentUser;
   authGateEl.hidden = loggedIn;
   appContentEl.hidden = !loggedIn;
-  headerLogoutBtn.hidden = !loggedIn;
 }
 
 authSignInBtn.addEventListener('click', async () => {
@@ -58,13 +56,7 @@ authSignUpBtn.addEventListener('click', async () => {
   }
   authStatusEl.textContent = data.session
     ? ''
-    : 'Compte créé — vérifie ta boîte mail pour confirmer, puis connecte-toi.';
-});
-
-headerLogoutBtn.addEventListener('click', async () => {
-  if (confirm('Te déconnecter sur cet appareil ?')) {
-    await supabase.auth.signOut();
-  }
+    : 'Compte créé, vérifie ta boîte mail pour confirmer, puis connecte-toi.';
 });
 
 supabase.auth.onAuthStateChange((event, session) => {
@@ -145,42 +137,34 @@ const UPCOMING_HIDE_RECURRING_DAYS = 4;
 
 const taskListEl = document.getElementById('taskList');
 const emptyStateEl = document.getElementById('emptyState');
-const listTitleEl = document.getElementById('listTitle');
 const addForm = document.getElementById('addForm');
 const titleInput = document.getElementById('taskTitle');
-const weightInput = document.getElementById('taskWeight');
-const weightValueEl = document.getElementById('weightValue');
-const scoreValueEl = document.getElementById('scoreValue');
-const scoreLabelEl = document.getElementById('scoreLabel');
+const dayTitleEl = document.getElementById('dayTitle');
+const dayDateLineEl = document.getElementById('dayDateLine');
+const dayDateInput = document.getElementById('dayDateInput');
+const dayPrevBtn = document.getElementById('dayPrevBtn');
+const dayNextBtn = document.getElementById('dayNextBtn');
+const backTodayBtn = document.getElementById('backTodayBtn');
+const scoreLineEl = document.getElementById('scoreLine');
+const scoreBarEl = document.getElementById('scoreBar');
 const scoreBarFillEl = document.getElementById('scoreBarFill');
-const scoreSubEl = document.getElementById('scoreSub');
+const scoreMessageEl = document.getElementById('scoreMessage');
 const priorityWarningEl = document.getElementById('priorityWarning');
-const navDayChipsEl = document.getElementById('navDayChips');
-const navOtherDateToggle = document.getElementById('navOtherDateToggle');
-const navDateJumpInput = document.getElementById('navDateJump');
 const completedWrapEl = document.getElementById('completedWrap');
 const completedToggleEl = document.getElementById('completedToggle');
 const completedToggleLabelEl = document.getElementById('completedToggleLabel');
-const completedChevronEl = document.getElementById('completedChevron');
 const completedListEl = document.getElementById('completedList');
 const abandonedWrapEl = document.getElementById('abandonedWrap');
 const abandonedToggleEl = document.getElementById('abandonedToggle');
 const abandonedToggleLabelEl = document.getElementById('abandonedToggleLabel');
-const abandonedChevronEl = document.getElementById('abandonedChevron');
 const abandonedListEl = document.getElementById('abandonedList');
 const dayNoteInput = document.getElementById('dayNoteInput');
-const repeatModeSelect = document.getElementById('repeatMode');
-const weekdayPicker = document.getElementById('weekdayPicker');
-const datePickerRow = document.getElementById('datePickerRow');
-const dayChipsEl = document.getElementById('dayChips');
-const otherDateToggle = document.getElementById('otherDateToggle');
-const taskDateInput = document.getElementById('taskDate');
-const recurringWrap = document.getElementById('recurringWrap');
 const recurringListEl = document.getElementById('recurringList');
-const upcomingWrap = document.getElementById('upcomingWrap');
-const upcomingList = document.getElementById('upcomingList');
-const historyWrap = document.getElementById('historyWrap');
-const historyList = document.getElementById('historyList');
+const recurringEmptyEl = document.getElementById('recurringEmpty');
+const upcomingListEl = document.getElementById('upcomingList');
+const upcomingEmptyEl = document.getElementById('upcomingEmpty');
+const historyListEl = document.getElementById('historyList');
+const historyEmptyEl = document.getElementById('historyEmpty');
 
 function loadTasks() {
   let loaded = null;
@@ -237,11 +221,8 @@ let tasks = loadTasks();
 let recurringTasks = loadRecurringTasks();
 let dayNotes = loadDayNotes();
 let selectedDate = todayKey();
-let selectedTaskDate = todayKey();
 let completedExpanded = false;
 let abandonedExpanded = false;
-const openNoteIds = new Set();
-const selectedWeekdays = new Set();
 
 let taskRealtimeChannel = null;
 let lastTasksPushedAt = null;
@@ -313,17 +294,57 @@ function tasksForDate(dateKey) {
   return tasks.filter(t => t.date === dateKey);
 }
 
-function weightColor(weight) {
-  if (weight >= 8) return '#e84393';
-  if (weight >= 5) return '#6c5ce7';
-  return '#74b9ff';
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+  if (!m) return [142, 142, 147];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+// Importance runs from a dull gray (low) to the brand yellow (high): the
+// more important a task or habit is, the more it visually "pops".
+function importanceColor(weight, lowHex, highHex) {
+  const t = Math.max(0, Math.min(1, (weight - 1) / 9));
+  const low = hexToRgb(lowHex);
+  const high = hexToRgb(highHex);
+  const rgb = low.map((c, i) => Math.round(c + (high[i] - c) * t));
+  return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+}
+
+// Plain-text importance color/weight (task rows, sheet, list rows): reads
+// the current theme's tuned gray/yellow so it stays legible in both themes.
+function importanceTextColor(weight) {
+  const style = getComputedStyle(document.documentElement);
+  const low = style.getPropertyValue('--importance-low').trim() || '#8e8e93';
+  const high = style.getPropertyValue('--importance-high').trim() || '#c98900';
+  return importanceColor(weight, low, high);
+}
+
+function importanceTextWeight(weight) {
+  if (weight >= 9) return '700';
+  if (weight >= 7) return '600';
+  return '500';
+}
+
+function setImportanceLabel(el, weight) {
+  el.textContent = weight;
+  el.style.color = importanceTextColor(weight);
+}
+
+// Habit weight badge: a filled pill with its own background, so it uses a
+// fixed light-gray-to-yellow range regardless of the page theme.
+function importanceBadgeColor(weight) {
+  return importanceColor(weight, '#c7c7cc', '#f5b731');
+}
+
+// Abandoned tasks are left out of the score, as the sheet promises.
 function computeScore(taskArr) {
-  const totalWeight = taskArr.reduce((sum, t) => sum + t.weight, 0);
-  const doneWeight = taskArr.filter(t => t.status === 'done').reduce((sum, t) => sum + t.weight, 0);
+  const scored = taskArr.filter(t => t.status !== 'abandoned');
+  const doneTasks = scored.filter(t => t.status === 'done');
+  const totalWeight = scored.reduce((sum, t) => sum + t.weight, 0);
+  const doneWeight = doneTasks.reduce((sum, t) => sum + t.weight, 0);
   const percent = totalWeight === 0 ? 0 : Math.round((doneWeight / totalWeight) * 100);
-  return { totalWeight, doneWeight, percent };
+  return { totalWeight, doneWeight, percent, total: scored.length, done: doneTasks.length };
 }
 
 function scoreMessage(percent, hasTasks) {
@@ -356,12 +377,17 @@ function relativeLabel(key) {
   return null;
 }
 
-function chipLabel(key) {
+function dayTitleFor(key) {
   const rel = relativeLabel(key);
   if (rel) return rel;
-  const d = keyToDate(key);
-  const wd = d.toLocaleDateString('fr-FR', { weekday: 'short' });
-  return `${wd.charAt(0).toUpperCase()}${wd.slice(1)} ${d.getDate()}`;
+  const wd = keyToDate(key).toLocaleDateString('fr-FR', { weekday: 'long' });
+  return wd.charAt(0).toUpperCase() + wd.slice(1);
+}
+
+function fullDateLabel(key) {
+  return keyToDate(key).toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
 }
 
 function weekdayPatternLabel(days) {
@@ -432,22 +458,120 @@ function materializeRecurring() {
 
 function goToDate(key) {
   selectedDate = key;
-  selectedTaskDate = key;
   completedExpanded = false;
   abandonedExpanded = false;
+  closeSubpage();
+  showModule('tasks');
   renderTasks();
 }
 
-function setTaskDate(key) {
-  selectedTaskDate = key;
-  renderDayChips();
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
 }
+
+// Small two-step confirmation for destructive buttons: the first tap arms
+// the button, the second one runs the action. It disarms itself after 4s.
+function twoStep(btn, confirmLabel, action) {
+  btn.dataset.label = btn.textContent;
+  btn.addEventListener('click', () => {
+    if (btn.classList.contains('confirming')) {
+      action();
+      return;
+    }
+    btn.classList.add('confirming');
+    btn.textContent = confirmLabel;
+    setTimeout(() => resetTwoStep(btn), 4000);
+  });
+}
+
+function resetTwoStep(btn) {
+  if (!btn.isConnected) return;
+  btn.classList.remove('confirming');
+  btn.textContent = btn.dataset.label;
+}
+
+// ---- Swipe left on a task to reveal "Supprimer" (touch only) --------
+
+const SWIPE_REVEAL = 88;
+let openSwipeItem = null;
+let swipeJustEnded = false;
+
+function closeOpenSwipe() {
+  if (openSwipeItem) {
+    openSwipeItem.classList.remove('swiped');
+    openSwipeItem = null;
+  }
+}
+
+function attachSwipe(li, main) {
+  let startX = 0;
+  let startY = 0;
+  let dx = 0;
+  let tracking = false;
+  let moved = false;
+
+  main.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    if (e.target.closest('.task-checkbox')) return;
+    startX = e.clientX;
+    startY = e.clientY;
+    dx = 0;
+    tracking = true;
+    moved = false;
+  });
+
+  main.addEventListener('pointermove', (e) => {
+    if (!tracking) return;
+    const mx = e.clientX - startX;
+    const my = e.clientY - startY;
+    if (!moved) {
+      if (Math.abs(mx) < 8) return;
+      if (Math.abs(my) > Math.abs(mx)) {
+        tracking = false;
+        return;
+      }
+      moved = true;
+      li.classList.add('dragging');
+      if (openSwipeItem && openSwipeItem !== li) closeOpenSwipe();
+    }
+    const base = li.classList.contains('swiped') ? -SWIPE_REVEAL : 0;
+    dx = Math.max(-SWIPE_REVEAL - 24, Math.min(0, base + mx));
+    main.style.transform = `translateX(${dx}px)`;
+  });
+
+  const finish = () => {
+    if (!tracking) return;
+    tracking = false;
+    if (!moved) return;
+    li.classList.remove('dragging');
+    main.style.transform = '';
+    if (dx < -SWIPE_REVEAL / 2) {
+      li.classList.add('swiped');
+      openSwipeItem = li;
+    } else {
+      li.classList.remove('swiped');
+      if (openSwipeItem === li) openSwipeItem = null;
+    }
+    swipeJustEnded = true;
+    setTimeout(() => { swipeJustEnded = false; }, 60);
+  };
+  main.addEventListener('pointerup', finish);
+  main.addEventListener('pointercancel', finish);
+}
+
+document.addEventListener('click', (e) => {
+  if (openSwipeItem && !openSwipeItem.contains(e.target)) closeOpenSwipe();
+});
+
+// ---- Task rows ------------------------------------------------------
 
 function buildTaskItem(task) {
   const li = document.createElement('li');
   li.className = 'task-item'
     + (task.status === 'done' ? ' done' : '')
     + (task.status === 'abandoned' ? ' abandoned' : '');
+  li.dataset.taskId = task.id;
 
   const main = document.createElement('div');
   main.className = 'task-item-main';
@@ -456,11 +580,21 @@ function buildTaskItem(task) {
   checkbox.type = 'checkbox';
   checkbox.className = 'task-checkbox';
   checkbox.checked = task.status === 'done';
-  checkbox.addEventListener('change', () => toggleTask(task.id));
+  checkbox.setAttribute('aria-label', 'Cocher la tâche');
+  checkbox.addEventListener('change', () => {
+    checkbox.disabled = true;
+    // Lock in the current height first so the collapse below has a real
+    // starting point to animate from (an "auto" height can't transition).
+    li.style.height = `${li.getBoundingClientRect().height}px`;
+    requestAnimationFrame(() => li.classList.add('leaving'));
+    setTimeout(() => toggleTask(task.id), 260);
+  });
+
+  const body = document.createElement('div');
+  body.className = 'task-body';
 
   const title = document.createElement('span');
   title.className = 'task-title';
-
   if (task.recurringId) {
     const tag = document.createElement('span');
     tag.className = 'task-tag';
@@ -475,83 +609,58 @@ function buildTaskItem(task) {
     title.appendChild(tag);
   }
   title.appendChild(document.createTextNode(task.title));
+  body.appendChild(title);
 
-  const badge = document.createElement('span');
-  badge.className = 'task-weight-badge';
-  badge.textContent = task.weight;
-  badge.style.background = weightColor(task.weight);
-
-  const noteBtn = document.createElement('button');
-  noteBtn.type = 'button';
-  noteBtn.className = 'task-icon-btn' + (task.note ? ' has-note' : '');
-  noteBtn.textContent = '🗒️';
-  noteBtn.title = task.note ? 'Modifier la note' : 'Ajouter une note';
-  noteBtn.setAttribute('aria-label', 'Note de la tâche');
-  noteBtn.addEventListener('click', () => toggleNoteEditor(task.id));
-
-  main.append(checkbox, title, badge, noteBtn);
-
-  if (task.status !== 'done') {
-    const stateBtn = document.createElement('button');
-    stateBtn.type = 'button';
-    stateBtn.className = 'task-icon-btn';
-    if (task.status === 'abandoned') {
-      stateBtn.textContent = '↩';
-      stateBtn.title = 'Remettre en tâche à faire';
-      stateBtn.setAttribute('aria-label', 'Réactiver la tâche');
-      stateBtn.addEventListener('click', () => restoreTask(task.id));
-    } else {
-      stateBtn.textContent = '🚫';
-      stateBtn.title = 'Marquer comme abandonnée';
-      stateBtn.setAttribute('aria-label', 'Abandonner la tâche');
-      stateBtn.addEventListener('click', () => abandonTask(task.id, task.title));
-    }
-    main.append(stateBtn);
+  if (task.note) {
+    const sub = document.createElement('span');
+    sub.className = 'task-sub';
+    sub.textContent = task.note;
+    body.appendChild(sub);
   }
 
-  const del = document.createElement('button');
-  del.className = 'task-delete';
-  del.textContent = '✕';
-  del.setAttribute('aria-label', 'Supprimer la tâche');
-  del.addEventListener('click', () => deleteTask(task.id));
-  main.append(del);
+  const weight = document.createElement('span');
+  weight.className = 'task-weight';
+  weight.style.color = importanceTextColor(task.weight);
+  weight.style.fontWeight = importanceTextWeight(task.weight);
+  weight.textContent = task.weight;
+  weight.title = 'Importance';
 
-  li.append(main);
+  const swipeDelete = document.createElement('button');
+  swipeDelete.type = 'button';
+  swipeDelete.className = 'task-swipe-delete';
+  swipeDelete.textContent = 'Supprimer';
+  swipeDelete.addEventListener('click', () => deleteTask(task.id));
 
-  const isEditingNote = openNoteIds.has(task.id);
-  if (task.note || isEditingNote) {
-    const noteWrap = document.createElement('div');
-    noteWrap.className = 'task-note-row';
-
-    if (isEditingNote) {
-      const textarea = document.createElement('textarea');
-      textarea.className = 'task-note-input';
-      textarea.dataset.taskId = task.id;
-      textarea.placeholder = 'Ajouter une note…';
-      textarea.value = task.note || '';
-      textarea.rows = 2;
-      textarea.addEventListener('blur', () => saveTaskNote(task.id, textarea.value));
-      noteWrap.appendChild(textarea);
-    } else {
-      const noteText = document.createElement('p');
-      noteText.className = 'task-note-text';
-      noteText.textContent = task.note;
-      noteText.addEventListener('click', () => toggleNoteEditor(task.id));
-      noteWrap.appendChild(noteText);
+  main.append(checkbox, body, weight);
+  main.addEventListener('click', (e) => {
+    if (e.target === checkbox) return;
+    if (swipeJustEnded) return;
+    if (li.classList.contains('swiped')) {
+      closeOpenSwipe();
+      return;
     }
+    openTaskSheet(task.id);
+  });
 
-    li.appendChild(noteWrap);
-  }
-
+  li.append(swipeDelete, main);
+  attachSwipe(li, main);
   return li;
 }
 
 function renderTasks() {
+  openSwipeItem = null;
+
   const dayTasks = tasksForDate(selectedDate);
   const sorted = [...dayTasks].sort((a, b) => b.weight - a.weight);
   const undoneTasks = sorted.filter(t => t.status === 'pending');
   const doneTasks = sorted.filter(t => t.status === 'done');
   const abandonedTasks = sorted.filter(t => t.status === 'abandoned');
+
+  const today = todayKey();
+  dayTitleEl.textContent = dayTitleFor(selectedDate);
+  dayDateLineEl.textContent = fullDateLabel(selectedDate);
+  dayDateInput.value = selectedDate;
+  backTodayBtn.hidden = selectedDate === today;
 
   taskListEl.innerHTML = '';
   undoneTasks.forEach(task => taskListEl.appendChild(buildTaskItem(task)));
@@ -569,78 +678,38 @@ function renderTasks() {
   }
 
   completedWrapEl.hidden = doneTasks.length === 0;
-  completedToggleLabelEl.textContent = `Tâches effectuées (${doneTasks.length})`;
+  completedToggleLabelEl.textContent = `Tâches réalisées (${doneTasks.length})`;
   completedListEl.innerHTML = '';
   doneTasks.forEach(task => completedListEl.appendChild(buildTaskItem(task)));
   completedListEl.hidden = !completedExpanded;
-  completedChevronEl.textContent = completedExpanded ? '▴' : '▾';
+  completedToggleEl.setAttribute('aria-expanded', String(completedExpanded));
 
   abandonedWrapEl.hidden = abandonedTasks.length === 0;
-  abandonedToggleLabelEl.textContent = `Tâches abandonnées (${abandonedTasks.length})`;
+  abandonedToggleLabelEl.textContent = `Abandonnées (${abandonedTasks.length})`;
   abandonedListEl.innerHTML = '';
   abandonedTasks.forEach(task => abandonedListEl.appendChild(buildTaskItem(task)));
   abandonedListEl.hidden = !abandonedExpanded;
-  abandonedChevronEl.textContent = abandonedExpanded ? '▴' : '▾';
+  abandonedToggleEl.setAttribute('aria-expanded', String(abandonedExpanded));
 
-  const { percent } = computeScore(dayTasks);
-  scoreValueEl.textContent = percent + '%';
-  scoreLabelEl.textContent = scoreMessage(percent, dayTasks.length > 0);
+  const { percent, total, done } = computeScore(dayTasks);
+  const hasTasks = total > 0;
+  scoreBarEl.hidden = !hasTasks;
+  scoreMessageEl.hidden = !hasTasks;
+  scoreLineEl.textContent = hasTasks
+    ? `${done} sur ${total} réalisées · ${percent} %`
+    : 'Aucune tâche pour l\'instant';
   scoreBarFillEl.style.width = percent + '%';
+  scoreMessageEl.textContent = scoreMessage(percent, hasTasks);
 
-  scoreSubEl.textContent = dayTasks.length > 0
-    ? `${doneTasks.length}/${dayTasks.length} tâches cochées — le score reflète le poids, pas le nombre`
-    : '';
-
-  const hasPriority = dayTasks.some(t => t.weight >= PRIORITY_THRESHOLD);
-  priorityWarningEl.hidden = !(dayTasks.length > 0 && !hasPriority);
-
-  const relative = relativeLabel(selectedDate);
-  listTitleEl.textContent = relative ? `Tâches — ${relative}` : `Tâches — ${shortLabel(selectedDate)}`;
+  const hasPriority = dayTasks.some(t => t.status !== 'abandoned' && t.weight >= PRIORITY_THRESHOLD);
+  priorityWarningEl.hidden = !(hasTasks && !hasPriority);
 
   dayNoteInput.value = dayNotes[selectedDate] || '';
+  autoGrow(dayNoteInput);
 
-  navDateJumpInput.value = selectedDate;
-  renderNavChips();
-
-  taskDateInput.value = selectedTaskDate;
-  renderDayChips();
   renderRecurringList();
   renderUpcoming();
   renderHistory();
-}
-
-function renderNavChips() {
-  navDayChipsEl.innerHTML = '';
-  const today = todayKey();
-  const keys = [addDaysToKey(today, -1), today, addDaysToKey(today, 1)];
-  // keep the currently viewed day visible even if it's further away
-  if (!keys.includes(selectedDate)) keys.push(selectedDate);
-
-  keys.forEach(key => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'day-chip' + (key === selectedDate ? ' active' : '');
-    btn.textContent = chipLabel(key);
-    btn.addEventListener('click', () => goToDate(key));
-    navDayChipsEl.appendChild(btn);
-  });
-}
-
-function renderDayChips() {
-  dayChipsEl.innerHTML = '';
-  const today = todayKey();
-  const keys = [today, addDaysToKey(today, 1)];
-  // keep the currently targeted day visible even if it's further away
-  if (!keys.includes(selectedTaskDate)) keys.push(selectedTaskDate);
-
-  keys.forEach(key => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'day-chip' + (key === selectedTaskDate ? ' active' : '');
-    btn.textContent = chipLabel(key);
-    btn.addEventListener('click', () => setTaskDate(key));
-    dayChipsEl.appendChild(btn);
-  });
 }
 
 function toggleTask(id) {
@@ -650,9 +719,7 @@ function toggleTask(id) {
   renderTasks();
 }
 
-function abandonTask(id, title) {
-  const ok = confirm(`Marquer « ${title} » comme abandonnée ?\n\nElle ne comptera plus dans ton score, mais restera visible dans "Tâches abandonnées".`);
-  if (!ok) return;
+function abandonTask(id) {
   const task = tasks.find(t => t.id === id);
   if (task) task.status = 'abandoned';
   saveTasks();
@@ -666,38 +733,334 @@ function restoreTask(id) {
   renderTasks();
 }
 
-function toggleNoteEditor(id) {
-  if (openNoteIds.has(id)) {
-    openNoteIds.delete(id);
-  } else {
-    openNoteIds.add(id);
-  }
-  renderTasks();
-  if (openNoteIds.has(id)) {
-    const textarea = document.querySelector(`.task-note-input[data-task-id="${id}"]`);
-    if (textarea) textarea.focus();
-  }
-}
-
-function saveTaskNote(id, value) {
-  const task = tasks.find(t => t.id === id);
-  if (!task) return;
-  const trimmed = value.trim();
-  openNoteIds.delete(id);
-  if (task.note === trimmed) {
-    renderTasks();
-    return;
-  }
-  task.note = trimmed;
-  saveTasks();
-  renderTasks();
-}
-
 function deleteTask(id) {
   tasks = tasks.filter(t => t.id !== id);
   saveTasks();
   renderTasks();
 }
+
+// ---- Task details sheet ---------------------------------------------
+
+const sheetOverlayEl = document.getElementById('taskSheetOverlay');
+const sheetTagEl = document.getElementById('sheetTag');
+const sheetDoneBtn = document.getElementById('sheetDoneBtn');
+const sheetTitleEl = document.getElementById('sheetTitle');
+const sheetWeightEl = document.getElementById('sheetWeight');
+const sheetWeightValueEl = document.getElementById('sheetWeightValue');
+const sheetDateRowEl = document.getElementById('sheetDateRow');
+const sheetDateEl = document.getElementById('sheetDate');
+const sheetRepeatRowEl = document.getElementById('sheetRepeatRow');
+const sheetRepeatEl = document.getElementById('sheetRepeat');
+const sheetWeekdaysRowEl = document.getElementById('sheetWeekdaysRow');
+const sheetWeekdaysEl = document.getElementById('sheetWeekdays');
+const sheetRecurringInfoEl = document.getElementById('sheetRecurringInfo');
+const sheetRecurringLabelEl = document.getElementById('sheetRecurringLabel');
+const sheetNoteEl = document.getElementById('sheetNote');
+const sheetStopRecurringBtn = document.getElementById('sheetStopRecurringBtn');
+const sheetAbandonBtn = document.getElementById('sheetAbandonBtn');
+const sheetDeleteBtn = document.getElementById('sheetDeleteBtn');
+const sheetHintEl = document.getElementById('sheetHint');
+
+let sheetTaskId = null;
+const sheetWeekdays = new Set();
+
+function syncSheetRepeatUI() {
+  const mode = sheetRepeatEl.value;
+  sheetWeekdaysRowEl.hidden = mode !== 'custom';
+  sheetDateRowEl.hidden = mode !== 'once';
+}
+
+function openTaskSheet(id) {
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+  sheetTaskId = id;
+
+  const rt = task.recurringId ? recurringTasks.find(r => r.id === task.recurringId) : null;
+  const isRecurring = !!task.recurringId;
+
+  sheetTitleEl.value = task.title;
+  sheetWeightEl.value = task.weight;
+  setImportanceLabel(sheetWeightValueEl, task.weight);
+  sheetNoteEl.value = task.note || '';
+
+  if (isRecurring) sheetTagEl.textContent = 'Tâche récurrente';
+  else if (task.date !== task.originalDate) sheetTagEl.textContent = 'Reportée depuis ' + shortLabel(task.originalDate);
+  else sheetTagEl.textContent = '';
+
+  sheetRepeatRowEl.hidden = isRecurring;
+  sheetRecurringInfoEl.hidden = !isRecurring;
+  sheetRecurringLabelEl.textContent = rt ? weekdayPatternLabel(rt.days) : 'Récurrente';
+  sheetStopRecurringBtn.hidden = !rt;
+  sheetDateEl.value = task.date;
+  sheetRepeatEl.value = 'once';
+  sheetWeekdays.clear();
+  sheetWeekdaysEl.querySelectorAll('.weekday-chip').forEach(b => b.classList.remove('active'));
+  if (isRecurring) {
+    sheetDateRowEl.hidden = true;
+    sheetWeekdaysRowEl.hidden = true;
+  } else {
+    syncSheetRepeatUI();
+  }
+
+  sheetAbandonBtn.hidden = task.status === 'done';
+  sheetAbandonBtn.textContent = task.status === 'abandoned' ? 'Remettre à faire' : 'Abandonner cette tâche';
+  sheetHintEl.hidden = task.status !== 'pending';
+  sheetHintEl.textContent = 'Une tâche abandonnée ne compte plus dans le score du jour et reste visible dans Abandonnées.';
+  resetTwoStep(sheetDeleteBtn);
+  resetTwoStep(sheetStopRecurringBtn);
+
+  sheetOverlayEl.hidden = false;
+  document.body.classList.add('sheet-open');
+  autoGrow(sheetTitleEl);
+  sheetOverlayEl.querySelector('.sheet').scrollTop = 0;
+}
+
+function hideTaskSheet() {
+  sheetOverlayEl.hidden = true;
+  sheetTaskId = null;
+  document.body.classList.remove('sheet-open');
+}
+
+// Writes the sheet fields back to the task. Returns false when the form is
+// not valid yet (the sheet then stays open).
+function commitTaskSheet() {
+  const task = tasks.find(t => t.id === sheetTaskId);
+  if (!task) return true;
+
+  let recurrenceDays = null;
+  if (!task.recurringId && sheetRepeatEl.value !== 'once') {
+    recurrenceDays = sheetRepeatEl.value === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : [...sheetWeekdays];
+    if (recurrenceDays.length === 0) {
+      alert('Choisis au moins un jour pour une tâche récurrente.');
+      return false;
+    }
+  }
+
+  const title = sheetTitleEl.value.trim();
+  if (title) task.title = title;
+  task.weight = Number(sheetWeightEl.value);
+  task.note = sheetNoteEl.value.trim();
+
+  if (!task.recurringId) {
+    if (recurrenceDays) {
+      const rt = {
+        id: crypto.randomUUID(),
+        title: task.title,
+        weight: task.weight,
+        days: recurrenceDays,
+        createdAt: new Date().toISOString(),
+      };
+      recurringTasks.push(rt);
+      if (recurrenceDays.includes(keyToDate(task.date).getDay())) task.recurringId = rt.id;
+      else tasks = tasks.filter(t => t.id !== task.id);
+      saveRecurringTasks();
+      materializeRecurring();
+    } else if (sheetDateEl.value && sheetDateEl.value !== task.date) {
+      task.date = sheetDateEl.value;
+    }
+  }
+
+  saveTasks();
+  renderTasks();
+  return true;
+}
+
+function closeTaskSheet() {
+  if (!sheetTaskId) {
+    hideTaskSheet();
+    return;
+  }
+  if (commitTaskSheet()) hideTaskSheet();
+}
+
+sheetDoneBtn.addEventListener('click', closeTaskSheet);
+sheetOverlayEl.addEventListener('click', (e) => {
+  if (e.target === sheetOverlayEl) closeTaskSheet();
+});
+sheetWeightEl.addEventListener('input', () => {
+  setImportanceLabel(sheetWeightValueEl, Number(sheetWeightEl.value));
+});
+sheetRepeatEl.addEventListener('change', syncSheetRepeatUI);
+sheetTitleEl.addEventListener('input', () => autoGrow(sheetTitleEl));
+sheetTitleEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sheetTitleEl.blur();
+  }
+});
+sheetWeekdaysEl.querySelectorAll('.weekday-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const day = Number(btn.dataset.day);
+    if (sheetWeekdays.has(day)) {
+      sheetWeekdays.delete(day);
+      btn.classList.remove('active');
+    } else {
+      sheetWeekdays.add(day);
+      btn.classList.add('active');
+    }
+  });
+});
+
+sheetAbandonBtn.addEventListener('click', () => {
+  const task = tasks.find(t => t.id === sheetTaskId);
+  if (!task) return;
+  if (!commitTaskSheet()) return;
+  const current = tasks.find(t => t.id === task.id);
+  if (current) {
+    current.status = current.status === 'abandoned' ? 'pending' : 'abandoned';
+    saveTasks();
+    renderTasks();
+  }
+  hideTaskSheet();
+});
+
+twoStep(sheetDeleteBtn, 'Confirmer la suppression', () => {
+  const id = sheetTaskId;
+  hideTaskSheet();
+  deleteTask(id);
+});
+
+twoStep(sheetStopRecurringBtn, 'Confirmer l\'arrêt', () => {
+  const task = tasks.find(t => t.id === sheetTaskId);
+  const recurringId = task && task.recurringId;
+  hideTaskSheet();
+  if (recurringId) deleteRecurringTask(recurringId);
+});
+
+// ---- Theme (light / dark / automatic) --------------------------------
+
+const THEME_KEY = 'vysion-theme-v1';
+const THEME_ORDER = ['auto', 'light', 'dark'];
+const THEME_LABELS = { auto: 'Thème : Automatique', light: 'Thème : Clair', dark: 'Thème : Sombre' };
+
+function loadTheme() {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    return THEME_ORDER.includes(v) ? v : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+function applyTheme(mode) {
+  if (mode === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = mode;
+}
+
+let currentTheme = loadTheme();
+applyTheme(currentTheme);
+
+function cycleTheme() {
+  const idx = THEME_ORDER.indexOf(currentTheme);
+  currentTheme = THEME_ORDER[(idx + 1) % THEME_ORDER.length];
+  try { localStorage.setItem(THEME_KEY, currentTheme); } catch {}
+  applyTheme(currentTheme);
+}
+
+function themeMenuItem() {
+  return { label: () => THEME_LABELS[currentTheme], action: cycleTheme, keepOpen: true };
+}
+
+// ---- Menu popover ---------------------------------------------------
+
+const menuPopoverEl = document.getElementById('menuPopover');
+const tasksMenuBtn = document.getElementById('tasksMenuBtn');
+const habitsMenuBtn = document.getElementById('habitsMenuBtn');
+
+function closeMenu() {
+  menuPopoverEl.hidden = true;
+}
+
+function openMenu(anchorEl, items) {
+  menuPopoverEl.innerHTML = '';
+  items.forEach(item => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'menu-item' + (item.danger ? ' danger' : '');
+    btn.setAttribute('role', 'menuitem');
+    const getLabel = () => (typeof item.label === 'function' ? item.label() : item.label);
+    btn.textContent = getLabel();
+    btn.addEventListener('click', () => {
+      item.action();
+      // Some items (like the theme cycle) update in place instead of closing,
+      // so tapping repeatedly steps through their states.
+      if (item.keepOpen) btn.textContent = getLabel();
+      else closeMenu();
+    });
+    menuPopoverEl.appendChild(btn);
+  });
+  menuPopoverEl.hidden = false;
+  const rect = anchorEl.getBoundingClientRect();
+  menuPopoverEl.style.top = `${rect.bottom + 6}px`;
+  menuPopoverEl.style.left = 'auto';
+  menuPopoverEl.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
+}
+
+function confirmLogout() {
+  if (confirm('Te déconnecter sur cet appareil ?')) supabase.auth.signOut();
+}
+
+const LOGOUT_ITEM = { label: 'Se déconnecter', danger: true, action: confirmLogout };
+
+tasksMenuBtn.addEventListener('click', () => {
+  if (!menuPopoverEl.hidden) {
+    closeMenu();
+    return;
+  }
+  openMenu(tasksMenuBtn, [
+    { label: 'Tâches récurrentes', action: () => openSubpage('recurring') },
+    { label: 'À venir', action: () => openSubpage('upcoming') },
+    { label: 'Historique', action: () => openSubpage('history') },
+    themeMenuItem(),
+    LOGOUT_ITEM,
+  ]);
+});
+
+habitsMenuBtn.addEventListener('click', () => {
+  if (!menuPopoverEl.hidden) {
+    closeMenu();
+    return;
+  }
+  openMenu(habitsMenuBtn, [themeMenuItem(), LOGOUT_ITEM]);
+});
+
+document.addEventListener('click', (e) => {
+  if (menuPopoverEl.hidden) return;
+  if (menuPopoverEl.contains(e.target)) return;
+  if (e.target.closest('#tasksMenuBtn, #habitsMenuBtn')) return;
+  closeMenu();
+});
+
+// ---- Sub pages (recurring, upcoming, history) -------------------------
+
+const subpageEl = document.getElementById('subpage');
+const subpageTitleEl = document.getElementById('subpageTitle');
+const SUBPAGE_TITLES = { recurring: 'Récurrentes', upcoming: 'À venir', history: 'Historique' };
+
+function openSubpage(name) {
+  subpageTitleEl.textContent = SUBPAGE_TITLES[name];
+  subpageEl.querySelectorAll('section[data-page]').forEach(s => {
+    s.hidden = s.dataset.page !== name;
+  });
+  subpageEl.hidden = false;
+  subpageEl.scrollTop = 0;
+  document.body.classList.add('sheet-open');
+}
+
+function closeSubpage() {
+  if (subpageEl.hidden) return;
+  subpageEl.hidden = true;
+  document.body.classList.remove('sheet-open');
+}
+
+document.getElementById('subpageBack').addEventListener('click', closeSubpage);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!sheetOverlayEl.hidden) closeTaskSheet();
+  else if (!menuPopoverEl.hidden) closeMenu();
+  else closeSubpage();
+});
 
 function addTask(title, weight, dateKey) {
   tasks.push({
@@ -738,28 +1101,38 @@ function deleteRecurringTask(id) {
 }
 
 function renderRecurringList() {
-  recurringWrap.hidden = recurringTasks.length === 0;
+  recurringEmptyEl.hidden = recurringTasks.length > 0;
+  recurringListEl.hidden = recurringTasks.length === 0;
   recurringListEl.innerHTML = '';
   recurringTasks.forEach(rt => {
     const li = document.createElement('li');
-    li.className = 'recurring-item';
+    const row = document.createElement('div');
+    row.className = 'list-row';
 
-    const info = document.createElement('span');
-    info.className = 'recurring-info';
-    info.textContent = `${rt.title} · ${weekdayPatternLabel(rt.days)}`;
+    const main = document.createElement('span');
+    main.className = 'list-row-main';
+    const title = document.createElement('span');
+    title.className = 'list-row-title';
+    title.textContent = rt.title;
+    const sub = document.createElement('span');
+    sub.className = 'list-row-sub';
+    sub.textContent = weekdayPatternLabel(rt.days);
+    main.append(title, sub);
 
-    const badge = document.createElement('span');
-    badge.className = 'task-weight-badge';
-    badge.textContent = rt.weight;
-    badge.style.background = weightColor(rt.weight);
+    const weight = document.createElement('span');
+    weight.className = 'list-row-end';
+    weight.style.color = importanceTextColor(rt.weight);
+    weight.style.fontWeight = importanceTextWeight(rt.weight);
+    weight.textContent = rt.weight;
 
-    const del = document.createElement('button');
-    del.className = 'task-delete';
-    del.textContent = '✕';
-    del.setAttribute('aria-label', 'Arrêter cette récurrence');
-    del.addEventListener('click', () => deleteRecurringTask(rt.id));
+    const stop = document.createElement('button');
+    stop.type = 'button';
+    stop.className = 'list-row-action';
+    stop.textContent = 'Arrêter';
+    twoStep(stop, 'Confirmer', () => deleteRecurringTask(rt.id));
 
-    li.append(info, badge, del);
+    row.append(main, weight, stop);
+    li.appendChild(row);
     recurringListEl.appendChild(li);
   });
 }
@@ -769,18 +1142,18 @@ function buildDayListItem(dateKey) {
   const li = document.createElement('li');
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'history-item';
+  btn.className = 'list-row';
   btn.addEventListener('click', () => goToDate(dateKey));
 
-  const date = document.createElement('span');
-  date.className = 'history-date';
-  date.textContent = shortLabel(dateKey);
+  const main = document.createElement('span');
+  main.className = 'list-row-main';
+  main.textContent = shortLabel(dateKey);
 
   const score = document.createElement('span');
-  score.className = 'history-score';
-  score.textContent = percent + '%';
+  score.className = 'list-row-end accent';
+  score.textContent = percent + ' %';
 
-  btn.append(date, score);
+  btn.append(main, score);
   li.appendChild(btn);
   return li;
 }
@@ -806,12 +1179,11 @@ function buildUpcomingDayBlock(dateKey) {
   header.addEventListener('click', () => goToDate(dateKey));
 
   const dateEl = document.createElement('span');
-  dateEl.className = 'upcoming-day-date';
   dateEl.textContent = relativeLabel(dateKey) || longLabel(dateKey);
 
   const scoreEl = document.createElement('span');
   scoreEl.className = 'upcoming-day-score';
-  scoreEl.textContent = percent + '%';
+  scoreEl.textContent = percent + ' %';
 
   header.append(dateEl, scoreEl);
 
@@ -833,9 +1205,10 @@ function buildUpcomingDayBlock(dateKey) {
     title.appendChild(document.createTextNode(task.title));
 
     const weight = document.createElement('span');
-    weight.className = 'upcoming-task-weight';
+    weight.className = 'list-row-end';
+    weight.style.color = importanceTextColor(task.weight);
+    weight.style.fontWeight = importanceTextWeight(task.weight);
     weight.textContent = task.weight;
-    weight.style.color = weightColor(task.weight);
 
     li.append(title, weight);
     list.appendChild(li);
@@ -850,118 +1223,72 @@ function renderUpcoming() {
   const futureDates = [...new Set(
     tasks.filter(t => t.date > today && !isFrequentRecurring(t)).map(t => t.date)
   )].sort();
-  upcomingWrap.hidden = futureDates.length === 0;
-  upcomingList.innerHTML = '';
-  futureDates.forEach(dateKey => upcomingList.appendChild(buildUpcomingDayBlock(dateKey)));
+  upcomingEmptyEl.hidden = futureDates.length > 0;
+  upcomingListEl.innerHTML = '';
+  futureDates.forEach(dateKey => upcomingListEl.appendChild(buildUpcomingDayBlock(dateKey)));
 }
 
 function renderHistory() {
   const today = todayKey();
   const pastDates = [...new Set(tasks.filter(t => t.date < today).map(t => t.date))].sort().reverse();
-  historyWrap.hidden = pastDates.length === 0;
-  historyList.innerHTML = '';
-  pastDates.slice(0, 30).forEach(dateKey => historyList.appendChild(buildDayListItem(dateKey)));
+  historyEmptyEl.hidden = pastDates.length > 0;
+  historyListEl.hidden = pastDates.length === 0;
+  historyListEl.innerHTML = '';
+  pastDates.slice(0, 30).forEach(dateKey => historyListEl.appendChild(buildDayListItem(dateKey)));
 }
 
-weightInput.addEventListener('input', () => {
-  weightValueEl.textContent = weightInput.value;
+dayPrevBtn.addEventListener('click', () => goToDate(addDaysToKey(selectedDate, -1)));
+dayNextBtn.addEventListener('click', () => goToDate(addDaysToKey(selectedDate, 1)));
+backTodayBtn.addEventListener('click', () => goToDate(todayKey()));
+
+// The date input sits invisibly on top of the day title, so a tap on the
+// title opens the native calendar on every platform.
+dayDateInput.addEventListener('click', () => {
+  try { dayDateInput.showPicker(); } catch { /* not supported, native tap handles it */ }
+});
+dayDateInput.addEventListener('change', () => {
+  if (dayDateInput.value) goToDate(dayDateInput.value);
 });
 
-repeatModeSelect.addEventListener('change', () => {
-  const mode = repeatModeSelect.value;
-  weekdayPicker.hidden = mode !== 'custom';
-  datePickerRow.hidden = mode !== 'once';
-});
-
-weekdayPicker.querySelectorAll('.weekday-chip').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const day = Number(btn.dataset.day);
-    if (selectedWeekdays.has(day)) {
-      selectedWeekdays.delete(day);
-      btn.classList.remove('active');
-    } else {
-      selectedWeekdays.add(day);
-      btn.classList.add('active');
-    }
-  });
-});
-
-otherDateToggle.addEventListener('click', () => {
-  taskDateInput.hidden = !taskDateInput.hidden;
-  if (!taskDateInput.hidden) {
-    taskDateInput.value = selectedTaskDate;
-    taskDateInput.focus();
-  }
-});
-
-taskDateInput.addEventListener('change', () => {
-  if (taskDateInput.value) setTaskDate(taskDateInput.value);
-});
-
+// New tasks are typed on the empty line at the bottom of the list, like a
+// note. Importance, date and repeat are set afterwards in the details sheet.
 addForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const title = titleInput.value.trim();
   if (!title) return;
-  const weight = Number(weightInput.value);
-  const mode = repeatModeSelect.value;
-
-  if (mode === 'once') {
-    addTask(title, weight, selectedTaskDate);
-  } else {
-    const days = mode === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : [...selectedWeekdays];
-    if (days.length === 0) {
-      alert('Choisis au moins un jour pour une tâche récurrente.');
-      return;
-    }
-    addRecurringTask(title, weight, days);
-  }
-
+  addTask(title, 5, selectedDate);
   titleInput.value = '';
-  weightInput.value = 5;
-  weightValueEl.textContent = '5';
-  repeatModeSelect.value = 'once';
-  weekdayPicker.hidden = true;
-  datePickerRow.hidden = false;
-  selectedWeekdays.clear();
-  weekdayPicker.querySelectorAll('.weekday-chip.active').forEach(b => b.classList.remove('active'));
-  taskDateInput.hidden = true;
-  setTaskDate(selectedDate);
   titleInput.focus();
-});
-
-navOtherDateToggle.addEventListener('click', () => {
-  navDateJumpInput.hidden = !navDateJumpInput.hidden;
-  if (!navDateJumpInput.hidden) {
-    navDateJumpInput.value = selectedDate;
-    navDateJumpInput.focus();
-  }
-});
-
-navDateJumpInput.addEventListener('change', () => {
-  if (navDateJumpInput.value) {
-    goToDate(navDateJumpInput.value);
-    navDateJumpInput.hidden = true;
-  }
 });
 
 completedToggleEl.addEventListener('click', () => {
   completedExpanded = !completedExpanded;
   completedListEl.hidden = !completedExpanded;
-  completedChevronEl.textContent = completedExpanded ? '▴' : '▾';
+  completedToggleEl.setAttribute('aria-expanded', String(completedExpanded));
 });
 
 abandonedToggleEl.addEventListener('click', () => {
   abandonedExpanded = !abandonedExpanded;
   abandonedListEl.hidden = !abandonedExpanded;
-  abandonedChevronEl.textContent = abandonedExpanded ? '▴' : '▾';
+  abandonedToggleEl.setAttribute('aria-expanded', String(abandonedExpanded));
 });
 
+dayNoteInput.addEventListener('input', () => autoGrow(dayNoteInput));
 dayNoteInput.addEventListener('blur', () => {
   const value = dayNoteInput.value.trim();
   if (value) dayNotes[selectedDate] = value;
   else delete dayNotes[selectedDate];
   saveDayNotes();
 });
+
+// On touch devices the tab bar gets out of the way while the keyboard is up.
+if (window.matchMedia('(pointer: coarse)').matches) {
+  const isTextField = (el) => el && el.matches && el.matches('input[type="text"], input[type="email"], input[type="password"], textarea');
+  document.addEventListener('focusin', (e) => {
+    if (isTextField(e.target)) document.body.classList.add('typing');
+  });
+  document.addEventListener('focusout', () => document.body.classList.remove('typing'));
+}
 
 carryOverUnfinished();
 materializeRecurring();
@@ -1178,12 +1505,12 @@ function renderRecap() {
     const cell = document.createElement('div');
     cell.className = 'day-recap-cell';
     if (d > today) {
-      cell.textContent = '—';
+      cell.textContent = '-';
       cell.classList.add('recap-empty');
     } else {
       const pct = getDayCompletion(formatKey(d));
       if (pct === null) {
-        cell.textContent = '—';
+        cell.textContent = '-';
         cell.classList.add('recap-empty');
       } else {
         cell.textContent = `${pct}%`;
@@ -1196,7 +1523,7 @@ function renderRecap() {
 
   weekRecapEl.classList.remove(...RECAP_COLOR_CLASSES);
   if (dayPcts.length === 0) {
-    weekRecapValueEl.textContent = '—';
+    weekRecapValueEl.textContent = '-';
     weekRecapEl.classList.add('recap-empty');
     return;
   }
@@ -1260,7 +1587,7 @@ function renderHabitRows() {
     headerLeft.innerHTML = `
       <span class="habit-name">${escapeHtml(habit.name)}</span>
       <span class="habit-category">${escapeHtml(habit.category)}</span>
-      <span class="task-weight-badge" style="background:${weightColor(habit.weight)}">${habit.weight}</span>
+      <span class="task-weight-badge" style="background:${importanceBadgeColor(habit.weight)}">${habit.weight}</span>
     `;
     headerLeft.addEventListener('click', () => openEditHabitModal(habit.id));
     header.appendChild(headerLeft);
@@ -1588,7 +1915,7 @@ function renderTrendsView() {
     header.innerHTML = `
       <span class="habit-name">${escapeHtml(habit.name)}</span>
       <span class="habit-category">${escapeHtml(habit.category)}</span>
-      <span class="task-weight-badge" style="background:${weightColor(habit.weight)}">${habit.weight}</span>
+      <span class="task-weight-badge" style="background:${importanceBadgeColor(habit.weight)}">${habit.weight}</span>
     `;
     card.appendChild(header);
 
@@ -1622,7 +1949,7 @@ function renderTrendsView() {
     stats.className = 'trend-stats';
     stats.innerHTML = `
       <div class="trend-stat">
-        <span class="trend-stat-value">${rate === null ? '—' : rate + '%'}</span>
+        <span class="trend-stat-value">${rate === null ? '-' : rate + '%'}</span>
         <span class="trend-stat-label">Réussite (30j)</span>
       </div>
       <div class="trend-stat">
@@ -1697,7 +2024,7 @@ function openAddHabitModal() {
   habitCategorySelect.value = 'Productivité';
   habitDescriptionInput.value = '';
   habitWeightInput.value = '5';
-  habitWeightValueEl.textContent = '5';
+  setImportanceLabel(habitWeightValueEl, 5);
   document.querySelector('input[name="isGood"][value="good"]').checked = true;
   habitDeleteBtnEl.hidden = true;
   resetHabitDeleteConfirm();
@@ -1714,7 +2041,7 @@ function openEditHabitModal(habitId) {
   habitCategorySelect.value = habit.category;
   habitDescriptionInput.value = habit.description || '';
   habitWeightInput.value = String(habit.weight);
-  habitWeightValueEl.textContent = String(habit.weight);
+  setImportanceLabel(habitWeightValueEl, habit.weight);
   document.querySelector(
     `input[name="isGood"][value="${habit.isGood ? 'good' : 'bad'}"]`
   ).checked = true;
@@ -1725,7 +2052,7 @@ function openEditHabitModal(habitId) {
 }
 
 habitWeightInput.addEventListener('input', () => {
-  habitWeightValueEl.textContent = habitWeightInput.value;
+  setImportanceLabel(habitWeightValueEl, Number(habitWeightInput.value));
 });
 
 function closeHabitModal() {
