@@ -4,114 +4,74 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Vysion Productivity</title>
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#1d1d1f">
 <meta name="color-scheme" content="light dark">
 <script>
 (function () {
-  try {
-    var t = localStorage.getItem('vysion-theme-v1');
-    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-  } catch (e) {}
+  var theme = 'dark';
+  try { if (localStorage.getItem('vysion-theme-v2') === 'light') theme = 'light'; } catch (e) {}
+  document.documentElement.dataset.theme = theme;
 })();
 </script>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vysion">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="habits.css">
 </head>
 <body>
-<div class="app">
 
-  <section class="auth-gate" id="authGate">
-    <div class="auth-gate-card">
-      <img src="logo-header.png" alt="Vysion Productivity" class="auth-logo">
-      <p class="sync-hint">Connecte-toi pour accéder à ton espace.</p>
-      <input type="email" id="authEmail" class="auth-input" placeholder="Email" autocomplete="email">
-      <input type="password" id="authPassword" class="auth-input" placeholder="Mot de passe" autocomplete="current-password">
-      <div class="auth-btn-row">
-        <button type="button" class="sync-btn" id="authSignInBtn">Se connecter</button>
-        <button type="button" class="ghost-btn" id="authSignUpBtn">Créer un compte</button>
-      </div>
-      <p class="sync-status" id="authStatus"></p>
+<section class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <img src="logo-header.png" alt="Vysion Productivity" class="auth-logo">
+    <p class="auth-hint">Connecte-toi pour accéder à ton espace.</p>
+    <input type="email" id="authEmail" class="auth-input" placeholder="Email" autocomplete="email">
+    <input type="password" id="authPassword" class="auth-input" placeholder="Mot de passe" autocomplete="current-password">
+    <div class="auth-actions">
+      <button type="button" class="btn-accent" id="authSignInBtn">Se connecter</button>
+      <button type="button" class="btn-quiet" id="authSignUpBtn">Créer un compte</button>
     </div>
-  </section>
+    <p class="auth-status" id="authStatus" role="status"></p>
+  </div>
+</section>
 
-  <div id="appContent" hidden>
+<div class="app" id="appContent" hidden>
 
-    <!-- ============== TASKS MODULE ============== -->
-    <div id="tasksModule" class="module-panel">
-
-      <div class="nav-bar">
-        <div class="nav-bar-group">
-          <button type="button" class="nav-btn" id="dayPrevBtn" aria-label="Jour précédent">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <button type="button" class="nav-btn" id="dayNextBtn" aria-label="Jour suivant">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        </div>
-        <button type="button" class="nav-btn" id="tasksMenuBtn" aria-label="Plus d'options" aria-haspopup="menu">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="7.9" cy="12" r="1.35" fill="currentColor"/><circle cx="12" cy="12" r="1.35" fill="currentColor"/><circle cx="16.1" cy="12" r="1.35" fill="currentColor"/></svg>
-        </button>
-      </div>
-
-      <header class="day-header">
-        <div class="day-title-wrap">
-          <h1 class="day-title" id="dayTitle">Aujourd'hui</h1>
-          <p class="day-date-line" id="dayDateLine"></p>
-          <input type="date" id="dayDateInput" class="day-date-input" aria-label="Choisir un jour">
-        </div>
-        <button type="button" class="back-today-btn" id="backTodayBtn" hidden>Revenir à aujourd'hui</button>
-
-        <div class="score" id="scoreBlock">
-          <p class="score-line" id="scoreLine"></p>
-          <div class="score-bar" id="scoreBar"><div class="score-bar-fill" id="scoreBarFill"></div></div>
-          <p class="score-message" id="scoreMessage"></p>
-          <p class="priority-warning" id="priorityWarning" hidden>Pas de tâche prioritaire ce jour-là. Pense à l'essentiel avant les détails.</p>
-        </div>
-      </header>
-
-      <ul class="task-list" id="taskList"></ul>
-
-      <form class="add-row" id="addForm" autocomplete="off">
-        <span class="add-circle" aria-hidden="true"></span>
-        <input type="text" id="taskTitle" class="add-input" placeholder="Nouvelle tâche" maxlength="200" enterkeyhint="done" aria-label="Nouvelle tâche">
-      </form>
-
-      <p class="empty-state" id="emptyState" hidden></p>
-
-      <div class="fold" id="completedWrap" hidden>
-        <button type="button" class="fold-toggle" id="completedToggle" aria-expanded="false">
-          <span id="completedToggleLabel">Tâches réalisées</span>
-          <svg class="fold-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <ul class="task-list" id="completedList" hidden></ul>
-      </div>
-
-      <div class="fold" id="abandonedWrap" hidden>
-        <button type="button" class="fold-toggle" id="abandonedToggle" aria-expanded="false">
-          <span id="abandonedToggleLabel">Abandonnées</span>
-          <svg class="fold-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <ul class="task-list" id="abandonedList" hidden></ul>
-      </div>
-
-      <div class="day-note-wrap">
-        <textarea id="dayNoteInput" class="day-note-input" placeholder="Note du jour" rows="1" aria-label="Note du jour"></textarea>
-      </div>
-
+  <aside class="sidebar" id="sidebar" aria-label="Navigation">
+    <div class="sb-brand"><img src="logo-header.png" alt="" height="22" class="sb-logo"><span>Vysion</span></div>
+    <nav class="sb-nav" id="sbNav" aria-label="Vues"></nav>
+    <div class="sb-section">Tableaux</div>
+    <div class="sb-boards" id="sbBoards"></div>
+    <button type="button" class="sb-add" id="sbAddBoard"></button>
+    <div class="sb-habits" id="sbHabits"></div>
+    <div class="sb-foot">
+      <button type="button" class="sb-foot-btn" id="themeBtn"></button>
+      <button type="button" class="sb-foot-btn" id="logoutBtn"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2H10"/><path d="M15 8l4 4-4 4M19 12H9"/></svg></span>Se déconnecter</button>
+      <p class="sync-status" id="syncStatus" role="status"></p>
     </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
 
-    <!-- ============== HABITS MODULE ============== -->
-    <div id="habitsModule" class="module-panel" hidden>
+  <div class="stage">
+    <header class="mobilebar">
+      <button type="button" class="icon-plain" id="menuBtn" aria-label="Menu">
+        <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span>
+      </button>
+      <h1 id="mobileTitle">Horizons</h1>
+    </header>
 
+    <main class="planner" id="planner"></main>
+
+    <!-- ============== HABITUDES ============== -->
+    <section id="habitsModule" class="habits-wrap" hidden>
       <header class="topbar">
-        <button id="habitsMenuBtn" class="icon-btn" title="Plus d'options" aria-label="Plus d'options" aria-haspopup="menu">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="7.9" cy="12" r="1.35" fill="currentColor"/><circle cx="12" cy="12" r="1.35" fill="currentColor"/><circle cx="16.1" cy="12" r="1.35" fill="currentColor"/></svg>
-        </button>
+        <span class="icon-spacer" aria-hidden="true"></span>
         <button id="weekLabel" class="week-label">Cette semaine ▾</button>
         <button id="addHabitBtn" class="icon-btn add-btn" title="Ajouter une habitude" aria-label="Ajouter une habitude">+</button>
       </header>
@@ -127,7 +87,7 @@
         <button id="nextWeek" class="nav-arrow" aria-label="Semaine suivante">›</button>
       </nav>
 
-      <main id="habitList" class="habit-list"></main>
+      <div id="habitList" class="habit-list"></div>
 
       <div id="dayRecapRow" class="day-recap-row" hidden></div>
 
@@ -141,214 +101,107 @@
       <p id="habitEmptyState" class="empty-state" hidden>
         Aucune habitude pour l'instant.<br>Appuie sur <strong>+</strong> pour en créer une.
       </p>
+    </section>
 
-    </div>
-
-    <!-- ============== TAB BAR ============== -->
-    <nav class="tab-bar" id="tabBar" aria-label="Navigation principale">
-      <button type="button" class="tab-btn active" id="tabTasksBtn" data-module="tasks">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.2" cy="7" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M11.5 7h9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="6.2" cy="17" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M11.5 17h9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-        <span>Tâches</span>
-      </button>
-      <button type="button" class="tab-btn" id="tabHabitsBtn" data-module="habits">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 3.2v3.4M16 3.2v3.4M3.5 10h17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M9 15l2.2 2.2L15.5 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Habitudes</span>
-      </button>
-    </nav>
-
-    <!-- ============== MENU POPOVER ============== -->
-    <div id="menuPopover" class="menu-popover" role="menu" hidden></div>
-
-    <!-- ============== SUB PAGES (recurring, upcoming, history) ============== -->
-    <div id="subpage" class="subpage" hidden>
-      <div class="subpage-bar">
-        <button type="button" class="back-btn" id="subpageBack">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>Tâches</span>
-        </button>
-      </div>
-      <div class="subpage-inner">
-        <h1 class="subpage-title" id="subpageTitle"></h1>
-
-        <section data-page="recurring" hidden>
-          <ul class="plain-list" id="recurringList"></ul>
-          <p class="empty-state" id="recurringEmpty" hidden>Aucune tâche récurrente.</p>
-        </section>
-
-        <section data-page="upcoming" hidden>
-          <div class="upcoming-days" id="upcomingList"></div>
-          <p class="empty-state" id="upcomingEmpty" hidden>Rien de prévu pour les prochains jours.</p>
-        </section>
-
-        <section data-page="history" hidden>
-          <ul class="plain-list" id="historyList"></ul>
-          <p class="empty-state" id="historyEmpty" hidden>Pas encore d'historique.</p>
-        </section>
-      </div>
-    </div>
-
-    <!-- ============== TASK DETAILS SHEET ============== -->
-    <div id="taskSheetOverlay" class="sheet-overlay" hidden>
-      <div class="sheet" role="dialog" aria-modal="true" aria-label="Détails de la tâche">
-        <div class="sheet-grabber" aria-hidden="true"></div>
-        <div class="sheet-header">
-          <span class="sheet-tag" id="sheetTag"></span>
-          <button type="button" class="sheet-done" id="sheetDoneBtn">OK</button>
-        </div>
-
-        <textarea id="sheetTitle" class="sheet-title" rows="1" maxlength="200" aria-label="Titre de la tâche"></textarea>
-
-        <div class="sheet-group">
-          <div class="sheet-row">
-            <span class="sheet-row-label">Importance</span>
-            <span class="sheet-row-value" id="sheetWeightValue">5</span>
-          </div>
-          <div class="sheet-row sheet-row-slider">
-            <input type="range" id="sheetWeight" min="1" max="10" value="5" step="1" aria-label="Importance de 1 à 10">
-          </div>
-        </div>
-
-        <div class="sheet-group" id="sheetPlanGroup">
-          <div class="sheet-row" id="sheetDateRow">
-            <span class="sheet-row-label">Date</span>
-            <input type="date" id="sheetDate" class="sheet-date" aria-label="Date de la tâche">
-          </div>
-          <div class="sheet-row" id="sheetRepeatRow">
-            <span class="sheet-row-label">Répétition</span>
-            <select id="sheetRepeat" class="sheet-select" aria-label="Répétition">
-              <option value="once">Une seule fois</option>
-              <option value="daily">Tous les jours</option>
-              <option value="custom">Certains jours</option>
-            </select>
-          </div>
-          <div class="sheet-row sheet-row-chips" id="sheetWeekdaysRow" hidden>
-            <div class="weekday-picker" id="sheetWeekdays">
-              <button type="button" class="weekday-chip" data-day="1">Lun</button>
-              <button type="button" class="weekday-chip" data-day="2">Mar</button>
-              <button type="button" class="weekday-chip" data-day="3">Mer</button>
-              <button type="button" class="weekday-chip" data-day="4">Jeu</button>
-              <button type="button" class="weekday-chip" data-day="5">Ven</button>
-              <button type="button" class="weekday-chip" data-day="6">Sam</button>
-              <button type="button" class="weekday-chip" data-day="0">Dim</button>
-            </div>
-          </div>
-          <div class="sheet-row" id="sheetRecurringInfo" hidden>
-            <span class="sheet-row-label">Répétition</span>
-            <span class="sheet-row-value" id="sheetRecurringLabel"></span>
-          </div>
-        </div>
-
-        <div class="sheet-group">
-          <textarea id="sheetNote" class="sheet-note" rows="3" placeholder="Ajouter une note" aria-label="Note de la tâche"></textarea>
-        </div>
-
-        <div class="sheet-group sheet-actions">
-          <button type="button" class="sheet-action" id="sheetStopRecurringBtn" hidden>Arrêter la récurrence</button>
-          <button type="button" class="sheet-action" id="sheetAbandonBtn">Abandonner cette tâche</button>
-          <button type="button" class="sheet-action danger" id="sheetDeleteBtn">Supprimer</button>
-        </div>
-        <p class="sheet-hint" id="sheetHint" hidden></p>
-      </div>
-    </div>
-
+    <aside class="detail" id="detail" hidden aria-label="Détail de la tâche"></aside>
   </div>
-
-  <!-- Habit add/edit modal -->
-  <div id="habitModalOverlay" class="modal-overlay" hidden>
-    <div class="modal">
-      <h2 id="habitModalTitle">Nouvelle habitude</h2>
-
-      <label class="field">
-        <span>Nom</span>
-        <input type="text" id="habitName" placeholder="Ex. Faire du sport" maxlength="60">
-      </label>
-
-      <fieldset class="field radio-field">
-        <legend>Cette habitude est-elle bonne pour moi ?</legend>
-        <label class="radio-option">
-          <input type="radio" name="isGood" value="good" checked>
-          <span>Oui, je veux la renforcer</span>
-        </label>
-        <label class="radio-option">
-          <input type="radio" name="isGood" value="bad">
-          <span>Non, je veux la réduire / arrêter</span>
-        </label>
-      </fieldset>
-
-      <div class="field">
-        <span>Importance</span>
-        <div class="weight-row">
-          <input type="range" id="habitWeight" min="1" max="10" value="5" step="1">
-          <span class="weight-value" id="habitWeightValue">5</span>
-        </div>
-      </div>
-
-      <label class="field">
-        <span>Catégorie</span>
-        <select id="habitCategory">
-          <option value="Productivité">Productivité</option>
-          <option value="Santé">Santé</option>
-          <option value="Famille">Famille</option>
-          <option value="Personnel">Personnel</option>
-          <option value="Travail">Travail</option>
-          <option value="Loisirs">Loisirs</option>
-          <option value="Autre">Autre</option>
-        </select>
-      </label>
-
-      <label class="field">
-        <span>Description <small>(optionnel)</small></span>
-        <textarea id="habitDescription" rows="3" placeholder="Pourquoi cette habitude compte pour toi..." maxlength="280"></textarea>
-      </label>
-
-      <div class="modal-actions">
-        <button id="habitDeleteBtn" class="btn btn-danger" hidden>Supprimer</button>
-        <div class="modal-actions-right">
-          <button id="habitCancelBtn" class="btn btn-ghost">Annuler</button>
-          <button id="habitSaveBtn" class="btn btn-primary">Enregistrer</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Week picker -->
-  <div id="weekPickerOverlay" class="modal-overlay" hidden>
-    <div class="modal week-picker-modal">
-      <div class="week-picker-header">
-        <button type="button" id="weekPickerPrevMonth" class="nav-arrow" aria-label="Mois précédent">‹</button>
-        <span id="weekPickerMonthLabel">Août 2026</span>
-        <button type="button" id="weekPickerNextMonth" class="nav-arrow" aria-label="Mois suivant">›</button>
-      </div>
-      <div class="week-picker-grid" id="weekPickerGrid"></div>
-      <div class="modal-actions">
-        <button type="button" id="weekPickerTodayBtn" class="btn btn-ghost">Aujourd'hui</button>
-        <div class="modal-actions-right">
-          <button type="button" id="weekPickerCloseBtn" class="btn btn-ghost">Fermer</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Habit day-cell popup -->
-  <div id="cellPopup" class="cell-popup" hidden>
-    <div class="popup-arrow"></div>
-    <div class="popup-actions">
-      <button class="popup-action" data-action="erase">
-        <span class="popup-icon">⌫</span><span class="popup-label">Erase</span>
-      </button>
-      <button class="popup-action popup-yes" data-action="done">
-        <span class="popup-icon">✓</span><span class="popup-label">Yes</span>
-      </button>
-      <button class="popup-action popup-no" data-action="missed">
-        <span class="popup-icon">✕</span><span class="popup-label">No</span>
-      </button>
-      <button class="popup-action" data-action="skipped">
-        <span class="popup-icon">⏭</span><span class="popup-label">Skip</span>
-      </button>
-    </div>
-  </div>
-
 </div>
+
+<!-- Habit add/edit modal -->
+<div id="habitModalOverlay" class="modal-overlay" hidden>
+  <div class="modal">
+    <h2 id="habitModalTitle">Nouvelle habitude</h2>
+
+    <label class="field">
+      <span>Nom</span>
+      <input type="text" id="habitName" placeholder="Ex. Faire du sport" maxlength="60">
+    </label>
+
+    <fieldset class="field radio-field">
+      <legend>Cette habitude est-elle bonne pour moi ?</legend>
+      <label class="radio-option">
+        <input type="radio" name="isGood" value="good" checked>
+        <span>Oui, je veux la renforcer</span>
+      </label>
+      <label class="radio-option">
+        <input type="radio" name="isGood" value="bad">
+        <span>Non, je veux la réduire / arrêter</span>
+      </label>
+    </fieldset>
+
+    <div class="field">
+      <span>Importance</span>
+      <div class="weight-row">
+        <input type="range" id="habitWeight" min="1" max="10" value="5" step="1">
+        <span class="weight-value" id="habitWeightValue">5</span>
+      </div>
+    </div>
+
+    <label class="field">
+      <span>Catégorie</span>
+      <select id="habitCategory">
+        <option value="Productivité">Productivité</option>
+        <option value="Santé">Santé</option>
+        <option value="Famille">Famille</option>
+        <option value="Personnel">Personnel</option>
+        <option value="Travail">Travail</option>
+        <option value="Loisirs">Loisirs</option>
+        <option value="Autre">Autre</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Description <small>(optionnel)</small></span>
+      <textarea id="habitDescription" rows="3" placeholder="Pourquoi cette habitude compte pour toi..." maxlength="280"></textarea>
+    </label>
+
+    <div class="modal-actions">
+      <button id="habitDeleteBtn" class="btn btn-danger" hidden>Supprimer</button>
+      <div class="modal-actions-right">
+        <button id="habitCancelBtn" class="btn btn-ghost">Annuler</button>
+        <button id="habitSaveBtn" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Week picker -->
+<div id="weekPickerOverlay" class="modal-overlay" hidden>
+  <div class="modal week-picker-modal">
+    <div class="week-picker-header">
+      <button type="button" id="weekPickerPrevMonth" class="nav-arrow" aria-label="Mois précédent">‹</button>
+      <span id="weekPickerMonthLabel">Août 2026</span>
+      <button type="button" id="weekPickerNextMonth" class="nav-arrow" aria-label="Mois suivant">›</button>
+    </div>
+    <div class="week-picker-grid" id="weekPickerGrid"></div>
+    <div class="modal-actions">
+      <button type="button" id="weekPickerTodayBtn" class="btn btn-ghost">Aujourd'hui</button>
+      <div class="modal-actions-right">
+        <button type="button" id="weekPickerCloseBtn" class="btn btn-ghost">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Habit day-cell popup -->
+<div id="cellPopup" class="cell-popup" hidden>
+  <div class="popup-arrow"></div>
+  <div class="popup-actions">
+    <button class="popup-action" data-action="erase">
+      <span class="popup-icon">⌫</span><span class="popup-label">Erase</span>
+    </button>
+    <button class="popup-action popup-yes" data-action="done">
+      <span class="popup-icon">✓</span><span class="popup-label">Yes</span>
+    </button>
+    <button class="popup-action popup-no" data-action="missed">
+      <span class="popup-icon">✕</span><span class="popup-label">No</span>
+    </button>
+    <button class="popup-action" data-action="skipped">
+      <span class="popup-icon">⏭</span><span class="popup-label">Skip</span>
+    </button>
+  </div>
+</div>
+
 <script src="app.js" type="module"></script>
 </body>
 </html>

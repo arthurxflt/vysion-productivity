@@ -1,9 +1,20 @@
-const CACHE_NAME = 'vysion-productivity-v5';
+const CACHE_NAME = 'vysion-productivity-v6';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './habits.css',
   './app.js',
+  './js/boards.js',
+  './js/colors.js',
+  './js/dates.js',
+  './js/detail.js',
+  './js/habits.js',
+  './js/model.js',
+  './js/store.js',
+  './js/taskmenu.js',
+  './js/ui.js',
+  './js/views.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
