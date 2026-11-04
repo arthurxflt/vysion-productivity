@@ -1,0 +1,23 @@
+# Évite la mise en pause du projet Supabase (offre gratuite : pause après environ
+# 7 jours sans activité). Appelle la fonction public.ping() tous les 3 jours.
+# La clé "anon" est la clé publique déjà présente dans app.js.
+name: keep-alive
+
+on:
+  schedule:
+    - cron: '17 6 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        env:
+          URL: https://jfpcbruzqgioqdozpwfd.supabase.co
+          KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmcGNicnV6cWdpb3Fkb3pwd2ZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MTgyOTEsImV4cCI6MjEwMTE5NDI5MX0.u2jIgHR6Wnba-zZPd3-V-97tcY7NEUOoE7zETFUw_6s
+        run: |
+          code=$(curl -s -o /tmp/out -w '%{http_code}' -X POST "$URL/rest/v1/rpc/ping" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{}')
+          echo "HTTP $code: $(cat /tmp/out)"
+          [ "$code" = "200" ]
