@@ -315,7 +315,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 
 /* ===================== Tableaux (Idées) ===================== */
 .cols.board { overflow-x: auto; }
-.cols.board .col { flex: 0 0 300px; }
+.cols.board .col { flex: 0 0 400px; }
 .list .col-head { align-items: center; padding-top: 18px; }
 .list-title {
   flex: 1; min-width: 0; padding: 4px 6px; margin-left: -6px; border: 1px solid transparent; border-radius: 6px;
@@ -324,7 +324,11 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .list-title:hover { background: var(--hover); }
 .list-title:focus { border-color: var(--accent); background: var(--bg); }
 .task.item { grid-template-columns: auto 1fr auto; }
-.item-text { width: 100%; border: 0; outline: 0; background: none; padding: 1px 0; color: var(--text); }
+.item-text, .add-input.grow {
+  display: block; width: 100%; min-width: 0; padding: 1px 0; border: 0; outline: 0; background: none; color: var(--text);
+  resize: none; overflow: hidden; line-height: 1.4; font: inherit;
+}
+.task.item .item-text { padding-top: 0; }
 .task.item.done .item-text { color: var(--text-muted); text-decoration: line-through; text-decoration-color: var(--circle); }
 .add-list {
   flex: 0 0 220px; align-self: flex-start; margin: 20px 16px; height: 40px; display: flex; align-items: center; gap: 8px;

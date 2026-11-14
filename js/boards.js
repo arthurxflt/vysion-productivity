@@ -2,6 +2,28 @@
 import { h, icon, openPopover, closeAllPopovers, toast } from './ui.js';
 import * as M from './model.js';
 
+
+// Un champ texte qui s'agrandit avec son contenu : l'idée entière reste lisible.
+function autosize(el) {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+function itemField(text, onCommit, maxlength) {
+  const field = h('textarea', {
+    rows: '1', class: 'item-text', maxlength: String(maxlength), 'aria-label': 'Élément',
+    oninput: (e) => autosize(e.currentTarget),
+    onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); } },
+    onchange: (e) => {
+      const v = e.currentTarget.value.trim();
+      if (v) onCommit(v); else e.currentTarget.value = text;
+    },
+  });
+  field.value = text;
+  requestAnimationFrame(() => autosize(field));
+  return field;
+}
+
 export function createBoards(app) {
   const { store } = app;
   const apply = (fn, undoable = true) => store.mutate(fn, { undoable });
@@ -36,25 +58,22 @@ export function createBoards(app) {
         type: 'button', class: 'check', role: 'checkbox', 'aria-checked': String(it.done),
         onclick: () => apply((s) => M.toggleItem(s, board.id, list.id, it.id)),
       }, icon('check', 13)),
-      h('input', {
-        type: 'text', class: 'item-text', value: it.text, maxlength: '300', 'aria-label': 'Élément',
-        onchange: (e) => {
-          const v = e.currentTarget.value.trim();
-          if (v) apply((s) => M.editItem(s, board.id, list.id, it.id, v)); else e.currentTarget.value = it.text;
-        },
-      }),
+      itemField(it.text, (v) => apply((s) => M.editItem(s, board.id, list.id, it.id, v)), 300),
       h('button', { type: 'button', class: 'more', 'aria-label': 'Supprimer l’élément', onclick: () => apply((s) => M.deleteItem(s, board.id, list.id, it.id)) }, icon('x', 16))));
 
-    const add = h('input', {
-      type: 'text', class: 'add-input', placeholder: 'Ajouter…', maxlength: '300', dataset: { focusKey: `item:${list.id}` },
+    const add = h('textarea', {
+      rows: '1', class: 'add-input grow', placeholder: 'Ajouter…', maxlength: '300', dataset: { focusKey: `item:${list.id}` },
+      oninput: (e) => autosize(e.currentTarget),
       onkeydown: (e) => {
-        if (e.key !== 'Enter') return;
+        if (e.key !== 'Enter' || e.shiftKey) return;
+        e.preventDefault();
         const v = e.currentTarget.value.trim();
         if (!v) return;
         e.currentTarget.value = '';
         apply((s) => M.addItem(s, board.id, list.id, v));
       },
     });
+    requestAnimationFrame(() => autosize(add));
 
     return h('section', { class: 'col list' },
       h('header', { class: 'col-head' }, title, more),
