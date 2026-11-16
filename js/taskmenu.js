@@ -93,32 +93,64 @@ export function createTaskMenu(app) {
   }
 
   // --- heure ----------------------------------------------------------------
+  // La durée est libre : heures + minutes (2 h 48 est possible), plus quelques
+  // raccourcis pour les durées courantes.
+  const durLabel = (m) => (m < 60 ? `${m} min` : m % 60 === 0 ? `${m / 60} h` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`);
+
   function openTimeEditor(anchor, id, { side = 'right' } = {}) {
     const t = get(id);
     if (!t || t.horizon !== 'day') return;
     const now = new Date();
     const defaultStart = t.anchor === app.today() ? Math.min(23 * 60, (now.getHours() + 1) * 60) : 9 * 60;
     const cur = t.time || { start: defaultStart, dur: 60 };
-    const start = h('input', { type: 'time', class: 'field-input', value: D.fmtMinutes(cur.start), step: '300' });
-    const durations = [15, 30, 45, 60, 90, 120, 180, 240, 360, 480];
-    const label = (m) => (m < 60 ? `${m} min` : m % 60 === 0 ? `${m / 60} h` : `${Math.floor(m / 60)} h ${m % 60}`);
-    const dur = h('select', { class: 'field-input' }, (durations.includes(cur.dur) ? durations : [...durations, cur.dur].sort((a, b) => a - b))
-      .map((m) => h('option', { value: String(m), selected: m === cur.dur }, label(m))));
+    const start = h('input', { type: 'time', class: 'field-input', value: D.fmtMinutes(cur.start), step: '60' });
+    const hh = h('input', { type: 'number', min: '0', max: '24', step: '1', inputmode: 'numeric', class: 'field-input narrow', value: String(Math.floor(cur.dur / 60)), 'aria-label': 'Durée en heures' });
+    const mm = h('input', { type: 'number', min: '0', max: '59', step: '1', inputmode: 'numeric', class: 'field-input narrow', value: String(cur.dur % 60), 'aria-label': 'Durée en minutes' });
+    const hint = h('p', { class: 'form-hint' });
+    const readDur = () => Math.max(0, Math.floor(Number(hh.value) || 0)) * 60 + Math.max(0, Math.floor(Number(mm.value) || 0));
+    const refresh = () => {
+      const s = D.parseTime(start.value);
+      const d = readDur();
+      if (s === null) hint.textContent = 'Heure de début invalide';
+      else if (d < 1) hint.textContent = 'La durée doit faire au moins 1 minute';
+      else hint.textContent = `${durLabel(Math.min(d, 1440 - s))}, de ${D.fmtMinutes(s)} à ${s + d >= 1440 ? '24:00' : D.fmtMinutes(s + d)}`;
+    };
+    for (const el of [start, hh, mm]) el.addEventListener('input', refresh);
+    refresh();
+    const chips = h('div', { class: 'chips' }, [30, 60, 90, 120, 180].map((m) => h('button', {
+      type: 'button', class: 'chip', onclick: () => { hh.value = String(Math.floor(m / 60)); mm.value = String(m % 60); refresh(); },
+    }, durLabel(m))));
     const save = () => {
       const s = D.parseTime(start.value);
       if (s === null) { start.focus(); return; }
-      apply((st) => M.updateTask(st, id, { time: { start: s, dur: Number(dur.value) } }));
+      const d = readDur();
+      if (d < 1) { mm.focus(); return; }
+      apply((st) => M.updateTask(st, id, { time: { start: s, dur: d } }));
       closeAllPopovers();
     };
     const body = h('div', { class: 'form-pop' },
       h('label', null, h('span', null, 'Début'), start),
-      h('label', null, h('span', null, 'Durée'), dur),
+      h('div', { class: 'field-group' },
+        h('span', null, 'Durée'),
+        h('div', { class: 'inline-row dur-row' }, hh, h('span', null, 'h'), mm, h('span', null, 'min')),
+        chips,
+        hint),
       h('div', { class: 'form-actions' },
         t.time ? h('button', { type: 'button', class: 'btn-quiet', onclick: () => { apply((st) => M.updateTask(st, id, { time: null })); closeAllPopovers(); } }, 'Retirer l’heure') : null,
         h('button', { type: 'button', class: 'btn-accent', onclick: save }, 'Enregistrer')));
     body.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
     const pop = openPopover(anchor, body, { side, className: 'form-pop-wrap', key: `time:${id}` });
     if (pop) start.focus();
+  }
+
+  // --- liste de couleur -----------------------------------------------------
+  function openLabel(anchor, id, { side = 'right' } = {}) {
+    const t = get(id);
+    if (!t) return;
+    app.labels.openPicker(anchor, t.labelId, (labelId) => {
+      apply((s) => M.updateTask(s, id, { labelId }));
+      closeAllPopovers();
+    }, { side, key: `label-pick:${id}` });
   }
 
   // --- répétition -----------------------------------------------------------
@@ -233,11 +265,16 @@ export function createTaskMenu(app) {
   // --- menu principal -------------------------------------------------------
   function menuItem(iconName, label, { right = null, onclick, danger = false, checked = false } = {}) {
     const btn = h('button', { type: 'button', class: `menu-item${danger ? ' danger' : ''}${checked ? ' checked' : ''}`, onclick },
-      iconName ? icon(iconName, 16) : h('span', { class: 'menu-ico-gap' }),
+      typeof iconName === 'string' ? icon(iconName, 16) : (iconName || h('span', { class: 'menu-ico-gap' })),
       h('span', { class: 'menu-label' }, label),
       right ? (right.nodeType ? right : h('span', { class: 'menu-right' }, right)) : null,
       checked ? icon('check', 15) : null);
     return btn;
+  }
+
+  function labelRight(t) {
+    const label = M.labelOf(store.getState(), t);
+    return label ? h('span', { class: 'menu-right with-dot' }, app.labels.dot(label, 10), label.name) : null;
   }
 
   function open(anchor, id) {
@@ -250,6 +287,7 @@ export function createTaskMenu(app) {
       menuItem('bars', 'Importance', { right: weightTag, onclick: (e) => openImportance(e.currentTarget, id) }),
       menuItem('cal', 'Replanifier', { onclick: (e) => openCalendar(e.currentTarget, id) }),
       t.horizon === 'day' ? menuItem('clock', 'Heure', { right: t.time ? D.timeRange(t.time.start, t.time.dur) : null, onclick: (e) => openTimeEditor(e.currentTarget, id) }) : null,
+      menuItem('tag', 'Liste', { right: labelRight(t), onclick: (e) => openLabel(e.currentTarget, id) }),
       menuItem('repeat', 'Répéter', { right: series ? M.ruleLabel(series.rule) : null, onclick: (e) => openRepeat(e.currentTarget, id) }),
       menuItem('sub', 'Ajouter un sous-objectif', { onclick: (e) => openSubgoalAdd(e.currentTarget, id) }),
       menuItem('up', 'En faire un sous-objectif de…', { onclick: (e) => openParentPicker(e.currentTarget, id) }),
@@ -260,5 +298,5 @@ export function createTaskMenu(app) {
     openPopover(anchor, h('div', { class: 'menu' }, items), { side: 'end', className: 'menu-pop', key: `menu:${id}` });
   }
 
-  return { open, openImportance, openCalendar, openTimeEditor, openRepeat, openParentPicker, openSubgoalAdd, removeTask };
+  return { open, openImportance, openCalendar, openTimeEditor, openLabel, openRepeat, openParentPicker, openSubgoalAdd, removeTask };
 }

@@ -16,6 +16,7 @@ function normalize(data) {
   state.v = 2;
   state.seq = Number.isFinite(state.seq) ? state.seq : Object.keys(state.tasks).length;
   state.series = state.series && typeof state.series === 'object' ? state.series : {};
+  state.labels = Array.isArray(state.labels) ? state.labels : [];
   state.boards = Array.isArray(state.boards) && state.boards.length ? state.boards : base.boards;
   return state;
 }

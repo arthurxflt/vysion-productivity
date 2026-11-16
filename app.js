@@ -5,6 +5,7 @@ import { createStore, createSync } from './js/store.js';
 import { createViews, VIEW_META, HOUR_H } from './js/views.js';
 import { createTaskMenu } from './js/taskmenu.js';
 import { createDetail } from './js/detail.js';
+import { createLabels } from './js/labels.js';
 import { createBoards } from './js/boards.js';
 import { createHabits } from './js/habits.js';
 
@@ -77,7 +78,8 @@ let currentUser = null;
 let sync = null;
 let syncLabel = DEV ? 'Mode local' : 'Hors ligne';
 
-const app = { store, ui, today: todayKey, render: () => render(), taskMenu: null, openDetail, closeDetail, setFocus };
+const app = { store, ui, today: todayKey, render: () => render(), taskMenu: null, labels: null, openDetail, closeDetail, setFocus };
+app.labels = createLabels(app);
 app.taskMenu = createTaskMenu(app);
 const views = createViews(app);
 const boards = createBoards(app);
@@ -166,7 +168,38 @@ function renderSidebar() {
     add.classList.remove('editing');
     add.replaceChildren(icon('plus', 16), h('span', null, 'Ajouter…'));
   }
+  renderLabelsSidebar();
   $('syncStatus').textContent = syncLabel;
+}
+
+let addingLabel = false;
+function renderLabelsSidebar() {
+  const labels = store.getState().labels || [];
+  $('sbLabels').replaceChildren(...labels.map((l) => h('div', { class: 'sb-row' },
+    h('button', {
+      type: 'button', class: 'sb-item', title: 'Modifier la liste', onclick: (e) => app.labels.openEditor(e.currentTarget, l.id),
+    }, h('span', { class: 'sb-dot' }, app.labels.dot(l, 12)), h('span', null, l.name)))));
+
+  const add = $('sbAddLabel');
+  if (addingLabel) {
+    const input = h('input', {
+      type: 'text', class: 'sb-input', placeholder: 'Nom de la liste', maxlength: '40', dataset: { focusKey: 'new-label' },
+      onkeydown: (e) => {
+        if (e.key === 'Escape') { addingLabel = false; render(); return; }
+        if (e.key !== 'Enter') return;
+        const name = e.currentTarget.value.trim();
+        addingLabel = false;
+        if (!name) { render(); return; }
+        store.mutate((s) => { M.addLabel(s, name); }, { undoable: true });
+      },
+      onblur: () => { if (addingLabel) { addingLabel = false; render(); } },
+    });
+    add.replaceChildren(icon('plus', 16), input);
+    add.classList.add('editing');
+  } else {
+    add.classList.remove('editing');
+    add.replaceChildren(icon('plus', 16), h('span', null, 'Ajouter…'));
+  }
 }
 
 function habitsItem() {
@@ -264,6 +297,10 @@ function render() {
     restoreUi(snap);
   }
   if (ui.detailId) detail.render();
+  if (snap.focus && snap.focus.key === 'new-label') {
+    const el = document.querySelector('[data-focus-key="new-label"]');
+    if (el) el.focus();
+  }
   if (snap.focus && snap.focus.key === 'new-board') {
     const el = document.querySelector('[data-focus-key="new-board"]');
     if (el) el.focus();
@@ -345,6 +382,13 @@ $('sbAddBoard').addEventListener('click', () => {
   addingBoard = true;
   render();
   const el = document.querySelector('[data-focus-key="new-board"]');
+  if (el) el.focus();
+});
+$('sbAddLabel').addEventListener('click', () => {
+  if (addingLabel) return;
+  addingLabel = true;
+  render();
+  const el = document.querySelector('[data-focus-key="new-label"]');
   if (el) el.focus();
 });
 $('menuBtn').addEventListener('click', () => document.body.classList.toggle('nav-open'));

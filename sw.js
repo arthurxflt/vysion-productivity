@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vysion-productivity-v6';
+const CACHE_NAME = 'vysion-productivity-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   './js/dates.js',
   './js/detail.js',
   './js/habits.js',
+  './js/labels.js',
   './js/model.js',
   './js/store.js',
   './js/taskmenu.js',

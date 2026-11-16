@@ -1,5 +1,5 @@
 // Vues du planificateur : Horizons, Heures, Jours, Semaines, Mois, Années.
-import { h, icon, openPopover, closeAllPopovers, pointAnchor } from './ui.js';
+import { h, icon, openPopover, closeAllPopovers } from './ui.js';
 import * as D from './dates.js';
 import * as M from './model.js';
 import { setImportanceLabel } from './colors.js';
@@ -30,12 +30,19 @@ export function createViews(app) {
     return [col.anchor.slice(0, 4), 'Année'];
   }
 
+  function labelDot(label) {
+    const d = app.labels.dot(label, 8);
+    d.title = label.name;
+    return d;
+  }
+
   // --- ligne de tâche -------------------------------------------------------
   function taskRow(task, { nested = false, drag = false } = {}) {
     const s = state();
     const children = M.childrenOf(s, task.id);
     const parent = nested ? null : M.parentOf(s, task.id);
     const open = ui.expanded.has(task.id);
+    const label = M.labelOf(s, task);
 
     const check = h('button', {
       type: 'button',
@@ -72,7 +79,7 @@ export function createViews(app) {
     const li = h('li', { class: `task${task.done ? ' done' : ''}${nested ? ' nested' : ''}`, dataset: { id: task.id } },
       check,
       h('div', { class: 'task-main' },
-        h('button', { type: 'button', class: 'task-title', onclick: () => app.openDetail(task.id) }, task.title),
+        h('button', { type: 'button', class: 'task-title', onclick: () => app.openDetail(task.id) }, label ? labelDot(label) : null, task.title),
         meta.length ? h('div', { class: 'task-meta' }, meta) : null),
       weight,
       more);
@@ -216,32 +223,147 @@ export function createViews(app) {
         style: { top: `${top}px`, height: `${height}px`, left: `calc(${(pos.col / pos.cols) * 100}% + 2px)`, width: `calc(${100 / pos.cols}% - 4px)` },
         onclick: () => app.openDetail(t.id),
       }, h('span', { class: 'block-title' }, t.title), height >= 40 ? h('span', { class: 'block-time' }, D.timeRange(t.time.start, t.time.dur)) : null);
+      const label = M.labelOf(state(), t);
+      if (label) block.style.setProperty('--blk', label.color);
       body.append(block);
     }
     if (col.anchor === today) {
       const now = new Date();
       body.append(h('div', { class: 'now-line', style: { top: `${((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_H}px` } }));
     }
-    body.addEventListener('click', (e) => {
-      if (e.target !== body && !e.target.classList.contains('hour-line')) return;
-      const y = e.clientY - body.getBoundingClientRect().top;
-      const start = Math.min(1425, Math.floor((y / HOUR_H) * 4) * 15);
-      quickAdd(pointAnchor(e.clientX, e.clientY), col.anchor, start);
-    });
+    enableCreate(body, col.anchor);
     return { body, untimed: tasks.filter((t) => !t.time) };
   }
 
-  function quickAdd(anchor, date, start) {
-    const input = h('input', { type: 'text', class: 'field-input', placeholder: `Nouvelle tâche à ${D.fmtMinutes(start)}`, maxlength: '200' });
+  // --- créer une tâche en glissant sur la grille (comme Google Agenda) ---------
+  // Appuyer sur une heure puis étirer : un bloc suit le pointeur par pas de
+  // 15 minutes, et au relâchement on saisit le titre. Un simple clic crée un
+  // bloc d'une heure. Au doigt, un appui long déclenche la sélection (sinon on
+  // fait défiler la grille).
+  const SNAP = 15;
+  function enableCreate(body, date) {
+    const yIn = (clientY) => clientY - body.getBoundingClientRect().top;
+    const down = (y) => Math.max(0, Math.min(1440 - SNAP, Math.floor(y / HOUR_H * 60 / SNAP) * SNAP));
+    const near = (y) => Math.max(0, Math.min(1440, Math.round(y / HOUR_H * 60 / SNAP) * SNAP));
+
+    body.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.target !== body && !e.target.classList.contains('hour-line')) return;
+      const touch = e.pointerType === 'touch';
+      const sx = e.clientX;
+      const sy = e.clientY;
+      const pressMin = down(yIn(sy));
+      const scroller = body.closest('.hours-scroll');
+      let armed = !touch;
+      let dragging = false;
+      let timer = null;
+      let ticker = null;
+      let last = { x: sx, y: sy };
+      let preview = null;
+      let range = { start: pressMin, dur: 60 };
+
+      const compute = () => {
+        const cur = near(yIn(last.y));
+        const start = cur >= pressMin ? pressMin : cur;
+        const end = cur >= pressMin ? Math.max(cur, pressMin + SNAP) : pressMin + SNAP;
+        range = { start, dur: Math.min(1440, end) - start };
+      };
+      const draw = () => {
+        if (!preview) {
+          preview = h('div', { class: 'create-block' }, h('span', { class: 'block-title' }, '(Sans titre)'), h('span', { class: 'block-time' }));
+          body.append(preview);
+        }
+        preview.style.top = `${(range.start / 60) * HOUR_H}px`;
+        preview.style.height = `${Math.max(MIN_BLOCK, (range.dur / 60) * HOUR_H - 2)}px`;
+        preview.lastChild.textContent = `${D.timeRange(range.start, range.dur)}`;
+      };
+      const stopTick = () => { clearInterval(ticker); ticker = null; };
+      const scrollEdges = () => {
+        if (!scroller) return;
+        const r = scroller.getBoundingClientRect();
+        if (last.y > r.bottom - 56) scroller.scrollTop += 12;
+        else if (last.y < r.top + 150 && scroller.scrollTop > 0) scroller.scrollTop -= 12;
+      };
+      const begin = () => {
+        dragging = true;
+        closeAllPopovers();
+        document.body.classList.add('creating');
+        compute();
+        draw();
+        ticker = setInterval(() => {
+          if (!body.isConnected) { cleanup(); return; }
+          scrollEdges();
+          compute();
+          draw();
+        }, 40);
+      };
+      const blockTouchScroll = (ev) => { if (armed && ev.cancelable) ev.preventDefault(); };
+      const cleanup = () => {
+        clearTimeout(timer);
+        stopTick();
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        document.removeEventListener('pointercancel', cancel);
+        document.removeEventListener('touchmove', blockTouchScroll);
+        document.body.classList.remove('creating');
+      };
+      const move = (ev) => {
+        last = { x: ev.clientX, y: ev.clientY };
+        const dist = Math.hypot(last.x - sx, last.y - sy);
+        if (!armed) { if (dist > 8) cleanup(); return; } // le doigt défile la grille
+        if (!dragging && dist > 4) begin();
+      };
+      const cancel = () => { cleanup(); if (preview) preview.remove(); };
+      const up = (ev) => {
+        last = { x: ev.clientX, y: ev.clientY };
+        const wasDragging = dragging;
+        cleanup();
+        if (wasDragging) compute();
+        else range = { start: Math.min(pressMin, 1440 - 60), dur: 60 };
+        if (!body.isConnected) return;
+        draw();
+        openCreatePopover(preview, date, range);
+      };
+
+      if (touch) {
+        timer = setTimeout(() => {
+          armed = true;
+          if (navigator.vibrate) navigator.vibrate(8);
+          begin();
+        }, 380);
+      }
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+      document.addEventListener('pointercancel', cancel);
+      document.addEventListener('touchmove', blockTouchScroll, { passive: false });
+    });
+  }
+
+  // Titre + liste, puis création. `preview` est le bloc fantôme dans la grille.
+  function openCreatePopover(preview, date, range) {
+    let labelId = null;
+    const title = h('input', { type: 'text', class: 'field-input', placeholder: 'Titre de la tâche', maxlength: '200', 'aria-label': 'Titre' });
+    const labelBtn = h('button', { type: 'button', class: 'field-btn' });
+    const paint = () => {
+      const label = (state().labels || []).find((l) => l.id === labelId) || null;
+      labelBtn.replaceChildren(app.labels.dot(label, 11), h('span', { class: 'grow' }, label ? label.name : 'Aucune liste'), icon('chevD', 14));
+      if (label) preview.style.setProperty('--blk', label.color); else preview.style.removeProperty('--blk');
+    };
+    labelBtn.addEventListener('click', () => app.labels.openPicker(labelBtn, labelId, (id) => { labelId = id; paint(); }, { side: 'start', key: 'create-label' }));
+    paint();
     const save = () => {
-      const title = input.value.trim();
-      if (!title) return;
-      store.mutate((st) => M.addTask(st, { title, horizon: 'day', date, time: { start, dur: 60 } }), { undoable: true });
+      const text = title.value.trim() || 'Sans titre';
+      store.mutate((st) => M.addTask(st, { title: text, horizon: 'day', date, time: range, labelId }), { undoable: true });
       closeAllPopovers();
     };
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
-    const pop = openPopover(anchor, h('div', { class: 'form-pop' }, input), { className: 'form-pop-wrap' });
-    if (pop) input.focus();
+    title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+    const body = h('div', { class: 'form-pop' },
+      title,
+      h('p', { class: 'form-hint strong' }, `${D.dayDateLabel(date)}, ${D.timeRange(range.start, range.dur)}`),
+      labelBtn,
+      h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn-accent', onclick: save }, 'Enregistrer')));
+    const pop = openPopover(preview, body, { side: 'right', className: 'form-pop-wrap', key: 'create', onClose: () => preview.remove() });
+    if (pop) title.focus(); else preview.remove();
   }
 
   function hoursView(cols) {

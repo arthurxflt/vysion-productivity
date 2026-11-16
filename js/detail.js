@@ -33,6 +33,7 @@ export function createDetail(app, root) {
     const parent = M.parentOf(s, id);
     const children = M.childrenOf(s, id);
     const series = task.seriesId ? s.series[task.seriesId] : null;
+    const label = M.labelOf(s, task);
     const apply = (fn) => store.mutate(fn, { undoable: true });
 
     const title = h('input', {
@@ -87,6 +88,7 @@ export function createDetail(app, root) {
         parent ? h('button', { type: 'button', class: 'detail-parent', onclick: () => app.openDetail(parent.id) }, icon('up', 14), parent.title) : null,
         row('cal', 'Période', periodLabel(task.horizon, task.anchor, today), (el) => app.taskMenu.openCalendar(el, id, { side: 'end' })),
         task.horizon === 'day' ? row('clock', 'Heure', task.time ? D.timeRange(task.time.start, task.time.dur) : 'Aucune', (el) => app.taskMenu.openTimeEditor(el, id, { side: 'end' })) : null,
+        row('tag', 'Liste', label ? h('span', { class: 'with-dot' }, app.labels.dot(label, 10), label.name) : 'Aucune', (el) => app.taskMenu.openLabel(el, id, { side: 'end' })),
         row('repeat', 'Répéter', series ? M.ruleLabel(series.rule) : 'Ne se répète pas', (el) => app.taskMenu.openRepeat(el, id, { side: 'end' })),
         row('up', 'Objectif parent', parent ? parent.title : 'Aucun', (el) => app.taskMenu.openParentPicker(el, id, { side: 'end' })),
         h('div', { class: 'detail-importance' }, icon('bars', 16), h('span', { class: 'detail-row-label' }, 'Importance'), slider, num),

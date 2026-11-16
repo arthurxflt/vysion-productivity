@@ -31,7 +31,7 @@ const UNIT_RANK = { day: 0, week: 1, month: 2, year: 3 };
 
 export function createState() {
   return {
-    v: 2, updatedAt: 0, seq: 0, tasks: {}, series: {},
+    v: 2, updatedAt: 0, seq: 0, tasks: {}, series: {}, labels: [],
     boards: [{ id: 'ideas', title: 'Idées', lists: [] }],
   };
 }
@@ -48,9 +48,63 @@ export function clampWeight(w) {
   return Math.min(10, Math.max(1, n));
 }
 
+// --- listes de couleur --------------------------------------------------------
+
+export const LABEL_COLORS = [
+  '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899',
+  '#14b8a6', '#f97316', '#eab308', '#06b6d4', '#84cc16', '#64748b',
+];
+
+export function addLabel(state, name, color) {
+  const clean = String(name ?? '').trim().slice(0, 40);
+  if (!clean) return null;
+  if (!Array.isArray(state.labels)) state.labels = [];
+  const used = new Set(state.labels.map((l) => l.color));
+  const fallback = LABEL_COLORS.find((c) => !used.has(c)) || LABEL_COLORS[state.labels.length % LABEL_COLORS.length];
+  const label = { id: uid(), name: clean, color: LABEL_COLORS.includes(color) ? color : fallback };
+  state.labels.push(label);
+  return label;
+}
+
+export function updateLabel(state, id, patch) {
+  const label = (state.labels || []).find((l) => l.id === id);
+  if (!label) return null;
+  if ('name' in patch) {
+    const clean = String(patch.name ?? '').trim().slice(0, 40);
+    if (clean) label.name = clean;
+  }
+  if ('color' in patch && LABEL_COLORS.includes(patch.color)) label.color = patch.color;
+  return label;
+}
+
+export function deleteLabel(state, id) {
+  if (!(state.labels || []).some((l) => l.id === id)) return false;
+  state.labels = state.labels.filter((l) => l.id !== id);
+  for (const t of Object.values(state.tasks)) if (t.labelId === id) t.labelId = null;
+  for (const s of Object.values(state.series)) if (s.template && s.template.labelId === id) s.template.labelId = null;
+  return true;
+}
+
+export function labelOf(state, task) {
+  if (!task || !task.labelId) return null;
+  return (state.labels || []).find((l) => l.id === task.labelId) || null;
+}
+
 // --- tâches -----------------------------------------------------------------
 
-export function addTask(state, { title, horizon = 'day', date, weight, parentId = null, time = null, note = '' }) {
+// Une plage horaire valide : début 0..1439, durée libre d'au moins 1 minute
+// (n'importe quelle valeur, 2 h 48 comprise), sans dépasser minuit.
+export function normTime(time) {
+  if (!time) return null;
+  const start = Math.round(Number(time.start));
+  if (!Number.isFinite(start)) return null;
+  const s = Math.min(1439, Math.max(0, start));
+  const d = Math.round(Number(time.dur));
+  const dur = Math.min(1440 - s, Math.max(1, Number.isFinite(d) ? d : 60));
+  return { start: s, dur };
+}
+
+export function addTask(state, { title, horizon = 'day', date, weight, parentId = null, time = null, note = '', labelId = null }) {
   const clean = String(title ?? '').trim();
   if (!clean) return null;
   const task = {
@@ -63,7 +117,8 @@ export function addTask(state, { title, horizon = 'day', date, weight, parentId 
     done: false,
     doneAt: null,
     parentId,
-    time: horizon === 'day' ? time : null,
+    time: horizon === 'day' ? normTime(time) : null,
+    labelId: labelId && (state.labels || []).some((l) => l.id === labelId) ? labelId : null,
     seriesId: null,
     occ: null,
     createdAt: Date.now(),
@@ -73,7 +128,7 @@ export function addTask(state, { title, horizon = 'day', date, weight, parentId 
   return task;
 }
 
-const TEMPLATE_KEYS = ['title', 'note', 'weight', 'time'];
+const TEMPLATE_KEYS = ['title', 'note', 'weight', 'time', 'labelId'];
 
 export function updateTask(state, id, patch) {
   const t = state.tasks[id];
@@ -85,7 +140,8 @@ export function updateTask(state, id, patch) {
   }
   if ('note' in patch) applied.note = String(patch.note ?? '');
   if ('weight' in patch) applied.weight = clampWeight(patch.weight);
-  if ('time' in patch && t.horizon === 'day') applied.time = patch.time || null;
+  if ('time' in patch && t.horizon === 'day') applied.time = normTime(patch.time);
+  if ('labelId' in patch) applied.labelId = patch.labelId && (state.labels || []).some((l) => l.id === patch.labelId) ? patch.labelId : null;
   Object.assign(t, applied);
 
   // Les modifications se propagent au modèle de la série et aux occurrences
@@ -284,7 +340,7 @@ export function occursOn(rule, horizon, start, anchor) {
 }
 
 function snapshotTemplate(t) {
-  return { title: t.title, note: t.note, weight: t.weight, time: t.time };
+  return { title: t.title, note: t.note, weight: t.weight, time: t.time, labelId: t.labelId || null };
 }
 
 // Crée les occurrences manquantes pour la période affichée. Retourne le nombre créé.
